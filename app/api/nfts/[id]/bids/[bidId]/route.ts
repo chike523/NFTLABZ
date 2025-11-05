@@ -279,8 +279,7 @@ export async function PATCH(
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
       const siteName = 'Artistrytonal'
       
-      // Fetch bidder and seller details
-      const adminClient = createAdminClient()
+      // Fetch bidder and seller details (reuse existing adminClient)
       const [bidderResult, sellerResult] = await Promise.all([
         adminClient.from('Users').select('email, username, display_name').eq('id', bid.bidder_id).maybeSingle(),
         adminClient.from('Users').select('email, username, display_name').eq('id', user.id).maybeSingle()
@@ -356,7 +355,7 @@ export async function PATCH(
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
       const siteName = 'Artistrytonal'
       
-      const adminClient = createAdminClient()
+      // Fetch bidder and seller details (reuse existing adminClient)
       const [bidderResult, sellerResult] = await Promise.all([
         adminClient.from('Users').select('email, username, display_name').eq('id', bid.bidder_id).maybeSingle(),
         adminClient.from('Users').select('email, username, display_name').eq('id', user.id).maybeSingle()
@@ -438,9 +437,9 @@ async function refundBid(supabase: any, bid: any, newStatus: 'rejected' | 'cance
   
   // Get bidder's wallet using admin client to ensure we can see it
   const { createAdminClient } = await import('@/lib/supabase/admin')
-  const adminClient = createAdminClient()
+  const refundAdminClient = createAdminClient()
   
-  const { data: bidderWallet, error: walletError } = await adminClient
+  const { data: bidderWallet, error: walletError } = await refundAdminClient
     .from('wallets')
     .select('*')
     .eq('user_id', bid.bidder_id)
@@ -465,7 +464,7 @@ async function refundBid(supabase: any, bid: any, newStatus: 'rejected' | 'cance
   console.log('[Refund Bid] Refunding:', bid.amount_eth, 'ETH -', currentBalance, '→', newBalance)
 
   // Use admin client for wallet update to bypass RLS
-  let walletUpdate = await adminClient
+  let walletUpdate = await refundAdminClient
     .from('wallets')
     .update({
       balance_eth: newBalance,
@@ -475,7 +474,7 @@ async function refundBid(supabase: any, bid: any, newStatus: 'rejected' | 'cance
 
   if (walletUpdate.error && walletUpdate.error.message?.includes('balance_eth')) {
     console.log('[Refund Bid] Using legacy balance column...')
-    walletUpdate = await adminClient
+    walletUpdate = await refundAdminClient
       .from('wallets')
       .update({
         balance: newBalance,
@@ -491,7 +490,7 @@ async function refundBid(supabase: any, bid: any, newStatus: 'rejected' | 'cance
   console.log('[Refund Bid] ✅ Bidder wallet refunded')
 
   // Create wallet transaction for refund (without description field)
-  const { error: walletTxError } = await adminClient.from('wallet_transactions').insert({
+  const { error: walletTxError } = await refundAdminClient.from('wallet_transactions').insert({
     wallet_id: bidderWallet.id,
     type: 'credit',
     amount: bid.amount_eth,
@@ -508,7 +507,7 @@ async function refundBid(supabase: any, bid: any, newStatus: 'rejected' | 'cance
   // Update bid status (adminClient already imported above)
   console.log('[Refund Bid] Updating bid status to:', newStatus)
   
-  const { data: updatedBid, error: bidStatusError } = await adminClient
+  const { data: updatedBid, error: bidStatusError } = await refundAdminClient
     .from('nft_bids')
     .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', bid.id)
