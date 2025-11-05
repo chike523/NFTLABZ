@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 
-export default function PageLoader() {
+function PageLoaderInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
@@ -27,6 +27,14 @@ export default function PageLoader() {
         />
       </div>
     </div>
+  )
+}
+
+export default function PageLoader() {
+  return (
+    <Suspense fallback={null}>
+      <PageLoaderInner />
+    </Suspense>
   )
 }
 

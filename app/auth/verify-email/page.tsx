@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import Link from 'next/link'
 import { CheckCircle, XCircle, Mail, ArrowLeft } from 'lucide-react'
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading } = useAuth()
@@ -130,5 +130,13 @@ export default function VerifyEmailPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>}>
+      <VerifyEmailContent />
+    </Suspense>
   )
 }
