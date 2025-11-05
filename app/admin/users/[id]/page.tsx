@@ -1,0 +1,277 @@
+"use client"
+
+import { useParams, useRouter } from "next/navigation"
+import { useEffect, useState, use } from "react"
+import AdminLayout from "@/components/admin/layout"
+import AdminHeader from "@/components/admin/header"
+import { ArrowLeft, CheckCircle2, Ban, UserX, Trash2, LogIn, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { adminQueries } from "@/lib/queries/admin"
+import Link from "next/link"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
+interface UserDetailPageProps {
+  params: Promise<{ id: string }>
+}
+
+export default function UserDetailPage({ params }: UserDetailPageProps) {
+  const resolvedParams = use(params)
+  const router = useRouter()
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [loggingIn, setLoggingIn] = useState(false)
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setLoading(true)
+        const userId = resolvedParams.id
+        
+        // Fetch user data (includes wallets, NFT count, and transactions)
+        const { data: userData, error: userError } = await adminQueries.getUserById(userId)
+        if (userError || !userData) {
+          setError(userError || 'User not found')
+          return
+        }
+        setUser(userData)
+      } catch (err) {
+        setError('Failed to fetch user data')
+        console.error('Error fetching user data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUserData()
+  }, [resolvedParams.id])
+
+  const handleLoginAsUser = async () => {
+    if (!user) return
+    
+    const confirmed = window.confirm(`Login as ${user.username || user.email}?\n\nYou will be logged in as this user. To return to admin, logout and login again at /admin/login.`)
+    if (!confirmed) return
+
+    try {
+      setLoggingIn(true)
+      
+      console.log('🔐 Step 1: Getting login credentials for user:', user.id)
+      
+      // Get temporary credentials from API
+      const response = await fetch(`/api/admin/users/${user.id}/login-as`, {
+        method: 'POST'
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to prepare login')
+      }
+
+      console.log('🔐 Step 2: Logging in with temporary credentials...')
+      
+      // Import Supabase client
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      
+      // Sign in as the user
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password
+      })
+
+      if (signInError) {
+        throw new Error('Failed to sign in as user: ' + signInError.message)
+      }
+
+      console.log('✅ Successfully logged in as user, redirecting...')
+      
+      // Redirect to user dashboard
+      window.location.href = '/dashboard'
+
+    } catch (error) {
+      console.error('❌ Error logging in as user:', error)
+      alert(error instanceof Error ? error.message : 'Failed to login as user')
+      setLoggingIn(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <AdminHeader title="Loading User..." />
+        <div className="p-6">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400"></div>
+            <span className="ml-2 text-gray-400">Loading user data...</span>
+          </div>
+        </div>
+      </AdminLayout>
+    )
+  }
+
+  if (error || !user) {
+    return (
+      <AdminLayout>
+        <AdminHeader title="User Not Found" />
+        <div className="p-6">
+          <p className="text-gray-400">{error || 'User not found.'}</p>
+        </div>
+      </AdminLayout>
+    )
+  }
+
+  return (
+    <AdminLayout>
+      <AdminHeader title="User Details" />
+      
+      <div className="p-6 space-y-6">
+        {/* Back Button */}
+        <Link href="/admin/users">
+          <Button variant="ghost" className="text-gray-400 hover:text-white">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Users
+          </Button>
+        </Link>
+
+        {/* User Profile */}
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+          <div className="flex items-center gap-6 mb-6">
+            <Avatar className="w-20 h-20">
+              <AvatarImage src={user.avatar_url} alt={user.username} />
+              <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <h2 className="text-2xl font-semibold text-white">{user.display_name || user.username}</h2>
+                <CheckCircle2 className="h-5 w-5 text-blue-400" />
+              </div>
+              <p className="text-gray-400">{user.email || 'N/A'}</p>
+              <p className="text-sm text-gray-500 font-mono">
+                {user.wallets && user.wallets.length > 0 
+                  ? user.wallets[0].wallet_address 
+                  : 'No wallet connected'
+                }
+              </p>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-blue-600 text-blue-400 hover:bg-blue-600/10"
+                onClick={handleLoginAsUser}
+                disabled={loggingIn}
+              >
+                {loggingIn ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Logging in...
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Login as User
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" className="border-yellow-600 text-yellow-400 hover:bg-yellow-600/10">
+                <Ban className="h-4 w-4 mr-2" />
+                Suspend
+              </Button>
+              <Button variant="outline" size="sm" className="border-red-600 text-red-400 hover:bg-red-600/10">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            </div>
+          </div>
+
+          {/* User Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-gray-700/50 rounded-lg p-4">
+              <p className="text-sm text-gray-400 mb-1">NFTs Owned</p>
+              <p className="text-2xl font-bold text-white">{user.nftCount || 0}</p>
+            </div>
+            <div className="bg-gray-700/50 rounded-lg p-4">
+              <p className="text-sm text-gray-400 mb-1">Total Spent</p>
+              <p className="text-2xl font-bold text-white">-</p>
+            </div>
+            <div className="bg-gray-700/50 rounded-lg p-4">
+              <p className="text-sm text-gray-400 mb-1">Total Earned</p>
+              <p className="text-2xl font-bold text-white">-</p>
+            </div>
+            <div className="bg-gray-700/50 rounded-lg p-4">
+              <p className="text-sm text-gray-400 mb-1">Join Date</p>
+              <p className="text-lg font-semibold text-white">
+                {new Date(user.created_at).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Status Badge */}
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+              user.status === "active" ? "bg-green-500/10 text-green-400" :
+              user.status === "suspended" ? "bg-yellow-500/10 text-yellow-400" :
+              "bg-red-500/10 text-red-400"
+            }`}>
+              {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+            </span>
+          </div>
+        </div>
+
+        {/* Recent Transactions */}
+        <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+          <div className="p-6 border-b border-gray-700">
+            <h2 className="text-lg font-semibold text-white">Recent Transactions</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-700/50">
+                <tr className="text-left text-sm text-gray-400 border-b border-gray-700">
+                  <th className="px-6 py-3 font-medium">ID</th>
+                  <th className="px-6 py-3 font-medium">Type</th>
+                  <th className="px-6 py-3 font-medium">Amount</th>
+                  <th className="px-6 py-3 font-medium">Date</th>
+                  <th className="px-6 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {user.transactions && user.transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                      No transactions found
+                    </td>
+                  </tr>
+                ) : (
+                  (user.transactions || []).map((transaction) => (
+                    <tr key={transaction.id} className="text-sm text-gray-300 border-b border-gray-700/50">
+                      <td className="px-6 py-4 font-mono text-xs">{transaction.id}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 rounded-full text-xs bg-blue-500/10 text-blue-400 capitalize">
+                          {transaction.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-medium">{transaction.amount_eth} ETH</td>
+                      <td className="px-6 py-4 text-gray-400">
+                        {new Date(transaction.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          transaction.status === "completed" ? "bg-green-500/10 text-green-400" :
+                          transaction.status === "pending" ? "bg-yellow-500/10 text-yellow-400" :
+                          "bg-red-500/10 text-red-400"
+                        }`}>
+                          {transaction.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </AdminLayout>
+  )
+}
