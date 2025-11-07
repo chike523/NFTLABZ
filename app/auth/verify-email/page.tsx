@@ -30,16 +30,16 @@ function VerifyEmailContent() {
       const queryType = searchParams.get('type') ?? hashParams.get('type')
       const error = searchParams.get('error') ?? hashParams.get('error')
       const errorDescription = searchParams.get('error_description') ?? hashParams.get('error_description')
-      const code =
-        searchParams.get('code') ??
-        hashParams.get('code') ??
+      const code = searchParams.get('code') ?? hashParams.get('code')
+      const token =
         searchParams.get('token') ??
-        hashParams.get('token')
+        hashParams.get('token') ??
+        searchParams.get('token_hash') ??
+        hashParams.get('token_hash')
 
-      if (emailParam) {
-        setEmail(emailParam)
-      } else if (user?.email) {
-        setEmail(user.email)
+      const targetEmail = emailParam ?? user?.email ?? ''
+      if (targetEmail) {
+        setEmail(targetEmail)
       }
 
       if (error) {
@@ -52,7 +52,18 @@ function VerifyEmailContent() {
         if (code) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
           if (exchangeError) {
-            throw exchangeError
+            const normalizedMessage = exchangeError.message?.toLowerCase?.() ?? ''
+            const isCodeVerifierMissing =
+              normalizedMessage.includes('code verifier') || normalizedMessage.includes('code_verifier')
+
+            if (!isCodeVerifierMissing) {
+              throw exchangeError
+            }
+
+            console.warn('Email verified without session (missing code verifier).', exchangeError)
+            setMessage('Email verified! For security, please sign in to continue.')
+            setStatus('verified')
+            return
           }
 
           const { data: { user: refreshedUser } } = await supabase.auth.getUser()
@@ -62,6 +73,21 @@ function VerifyEmailContent() {
 
           setStatus('verified')
           return
+        }
+
+        if (token && targetEmail) {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            email: targetEmail,
+            token,
+            type: (queryType as any) || 'signup'
+          })
+
+          if (!verifyError) {
+            setStatus('verified')
+            return
+          }
+
+          throw verifyError
         }
 
         if (queryType === 'signup' || user?.email_confirmed_at) {
