@@ -39,7 +39,7 @@ export class AuthService {
       const emailRedirectTo =
         process.env.NEXT_PUBLIC_EMAIL_SIGNUP_REDIRECT ??
         process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL ??
-        (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined)
+        (typeof window !== 'undefined' ? `${window.location.origin}/auth/verify-email` : undefined)
 
       if (emailRedirectTo) {
         signupOptions.emailRedirectTo = emailRedirectTo
