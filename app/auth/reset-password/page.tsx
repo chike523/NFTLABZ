@@ -19,6 +19,7 @@ function ResetPasswordContent() {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<'validating' | 'form' | 'success' | 'error'>('validating')
   const [error, setError] = useState('')
+  const [email, setEmail] = useState('')
 
   useEffect(() => {
     const validateRecoveryLink = async () => {
@@ -34,18 +35,68 @@ function ResetPasswordContent() {
       const queryType = searchParams.get('type') ?? hashParams.get('type')
       const accessToken = searchParams.get('access_token') ?? hashParams.get('access_token')
       const refreshToken = searchParams.get('refresh_token') ?? hashParams.get('refresh_token')
-      const code = searchParams.get('code') ?? hashParams.get('code') ?? searchParams.get('token') ?? hashParams.get('token')
+      const code = searchParams.get('code') ?? hashParams.get('code')
+      const token = searchParams.get('token') ?? hashParams.get('token')
+      const tokenHash = searchParams.get('token_hash') ?? hashParams.get('token_hash')
+      const emailParam = searchParams.get('email') ?? hashParams.get('email')
 
-      if (!(accessToken && refreshToken) && !code) {
+      if (emailParam) {
+        setEmail(emailParam)
+      }
+
+      if (!(accessToken && refreshToken) && !code && !token && !tokenHash) {
         setStatus('error')
         setError('Invalid or expired reset link. Please request a new password reset.')
         return
       }
 
       try {
+        const attemptOtpFallback = async () => {
+          if (tokenHash) {
+            const { error: verifyByHashError } = await supabase.auth.verifyOtp({
+              type: 'recovery',
+              token_hash: tokenHash
+            })
+            if (!verifyByHashError) {
+              return true
+            }
+            console.error('Password recovery token_hash verification failed:', verifyByHashError)
+          }
+
+          if (token && (emailParam || email)) {
+            const { error: verifyByTokenError } = await supabase.auth.verifyOtp({
+              type: 'recovery',
+              email: emailParam || email,
+              token
+            })
+
+            if (!verifyByTokenError) {
+              return true
+            }
+
+            console.error('Password recovery OTP verification failed:', verifyByTokenError)
+          }
+
+          return false
+        }
+
         if (code) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (exchangeError) throw exchangeError
+          if (exchangeError) {
+            const normalizedMessage = exchangeError.message?.toLowerCase?.() ?? ''
+            const isCodeVerifierMissing =
+              normalizedMessage.includes('code verifier') || normalizedMessage.includes('code_verifier')
+
+            if (!isCodeVerifierMissing) {
+              throw exchangeError
+            }
+
+            console.warn('Password recovery PKCE verifier missing, attempting OTP fallback.')
+            const fallbackSuccess = await attemptOtpFallback()
+            if (!fallbackSuccess) {
+              throw exchangeError
+            }
+          }
         } else if (accessToken && refreshToken) {
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
@@ -53,6 +104,11 @@ function ResetPasswordContent() {
           })
 
           if (sessionError) throw sessionError
+        } else {
+          const fallbackSuccess = await attemptOtpFallback()
+          if (!fallbackSuccess) {
+            throw new Error('Unable to verify password reset link. Please request a new link.')
+          }
         }
 
         if (queryType !== 'recovery') {
