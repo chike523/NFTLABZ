@@ -40,6 +40,18 @@ function ResetPasswordContent() {
       const tokenHash = searchParams.get('token_hash') ?? hashParams.get('token_hash')
       const emailParam = searchParams.get('email') ?? hashParams.get('email')
 
+      console.log('🔍 Reset password debug:', {
+        queryType,
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        hasCode: !!code,
+        hasToken: !!token,
+        hasTokenHash: !!tokenHash,
+        email: emailParam,
+        fullHash: window.location.hash,
+        fullSearch: window.location.search
+      })
+
       if (emailParam) {
         setEmail(emailParam)
       }
