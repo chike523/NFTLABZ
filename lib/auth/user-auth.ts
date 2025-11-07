@@ -70,24 +70,6 @@ export class UserAuthService {
       if (!authData.user) throw new Error('User creation failed')
 
       // Manually create profile in Users table (no automatic trigger)
-      const { data: userData, error: userError } = await this.supabase
-        .from('Users')
-        .insert({
-          id: authData.user.id,
-          username: username,
-          display_name: username,
-          email: email,
-          status: 'active'
-        })
-        .select()
-        .single()
-
-      if (userError) {
-        // Rollback: delete auth user if profile creation fails
-        await this.supabase.auth.admin.deleteUser(authData.user.id)
-        throw userError
-      }
-
       // Send welcome email asynchronously
       fetch('/api/auth/welcome', {
         method: 'POST',
@@ -98,7 +80,7 @@ export class UserAuthService {
       return {
         success: true,
         user: authData.user,
-        profile: userData,
+        profile: null,
         message: 'Check your email for verification link!'
       }
     } catch (error: any) {
