@@ -32,13 +32,32 @@ function ResetPasswordContent() {
       const supabase = createClient()
 
       const hashParams = new URLSearchParams(window.location.hash.replace('#', ''))
+      
+      // Extract all possible parameters
       const queryType = searchParams.get('type') ?? hashParams.get('type')
       const accessToken = searchParams.get('access_token') ?? hashParams.get('access_token')
       const refreshToken = searchParams.get('refresh_token') ?? hashParams.get('refresh_token')
       const code = searchParams.get('code') ?? hashParams.get('code')
-      const token = searchParams.get('token') ?? hashParams.get('token')
-      const tokenHash = searchParams.get('token_hash') ?? hashParams.get('token_hash')
+      let token = searchParams.get('token') ?? hashParams.get('token')
+      let tokenHash = searchParams.get('token_hash') ?? hashParams.get('token_hash')
       const emailParam = searchParams.get('email') ?? hashParams.get('email')
+      
+      // If we only have a code but no token/token_hash, try to extract from the full URL
+      // Supabase sometimes embeds these in the redirect_to parameter
+      if (code && !token && !tokenHash) {
+        const fullUrl = window.location.href
+        const redirectToMatch = fullUrl.match(/redirect_to=([^&]+)/)
+        if (redirectToMatch) {
+          try {
+            const redirectUrl = decodeURIComponent(redirectToMatch[1])
+            const redirectParams = new URLSearchParams(redirectUrl.split('?')[1] || '')
+            token = token || redirectParams.get('token')
+            tokenHash = tokenHash || redirectParams.get('token_hash')
+          } catch (e) {
+            console.warn('Failed to parse redirect_to parameter:', e)
+          }
+        }
+      }
 
       console.log('🔍 Reset password debug:', {
         queryType,
