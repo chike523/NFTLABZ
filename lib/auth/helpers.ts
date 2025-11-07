@@ -23,15 +23,32 @@ export class AuthService {
   // Sign up with email and password
   async signUp(email: string, password: string, username: string) {
     try {
+      const signupOptions: {
+        data: {
+          username: string
+          display_name: string
+        }
+        emailRedirectTo?: string
+      } = {
+        data: {
+          username,
+          display_name: username
+        }
+      }
+
+      const emailRedirectTo =
+        process.env.NEXT_PUBLIC_EMAIL_SIGNUP_REDIRECT ??
+        process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL ??
+        (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined)
+
+      if (emailRedirectTo) {
+        signupOptions.emailRedirectTo = emailRedirectTo
+      }
+
       const { data, error } = await this.supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            username,
-            display_name: username
-          }
-        }
+        options: signupOptions
       })
 
       if (error) throw error

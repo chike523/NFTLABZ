@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/auth-context'
 import Link from 'next/link'
 import { Eye, EyeOff, CheckCircle, XCircle, ArrowLeft } from 'lucide-react'
 import AuthFormInput from '@/components/auth-form-input'
+import { createClient } from '@/lib/supabase/client'
 
 function ResetPasswordContent() {
   const router = useRouter()
@@ -16,18 +17,58 @@ function ResetPasswordContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'form' | 'success' | 'error'>('form')
+  const [status, setStatus] = useState<'validating' | 'form' | 'success' | 'error'>('validating')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    // Check if we have the necessary tokens in URL
-    const accessToken = searchParams.get('access_token')
-    const refreshToken = searchParams.get('refresh_token')
-    
-    if (!accessToken || !refreshToken) {
-      setStatus('error')
-      setError('Invalid or expired reset link. Please request a new password reset.')
+    const validateRecoveryLink = async () => {
+      if (typeof window === 'undefined') {
+        setStatus('error')
+        setError('Password reset is only available in the browser.')
+        return
+      }
+
+      const supabase = createClient()
+
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''))
+      const queryType = searchParams.get('type') ?? hashParams.get('type')
+      const accessToken = searchParams.get('access_token') ?? hashParams.get('access_token')
+      const refreshToken = searchParams.get('refresh_token') ?? hashParams.get('refresh_token')
+      const code = searchParams.get('code') ?? hashParams.get('code') ?? searchParams.get('token') ?? hashParams.get('token')
+
+      if (!(accessToken && refreshToken) && !code) {
+        setStatus('error')
+        setError('Invalid or expired reset link. Please request a new password reset.')
+        return
+      }
+
+      try {
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          if (exchangeError) throw exchangeError
+        } else if (accessToken && refreshToken) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+
+          if (sessionError) throw sessionError
+        }
+
+        if (queryType !== 'recovery') {
+          // Not strictly required, but warn if type mismatch
+          console.warn('Unexpected password reset type provided:', queryType)
+        }
+
+        setStatus('form')
+      } catch (err) {
+        console.error('Password recovery session error:', err)
+        setStatus('error')
+        setError('Invalid or expired reset link. Please request a new password reset.')
+      }
     }
+
+    validateRecoveryLink()
   }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,6 +119,22 @@ function ResetPasswordContent() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (status === 'validating') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md w-full space-y-6">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+            <h1 className="text-xl font-semibold text-foreground">Preparing reset link…</h1>
+            <p className="text-sm text-muted-foreground">
+              Hang tight while we verify the password reset link.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (status === 'success') {

@@ -38,15 +38,32 @@ export class UserAuthService {
       }
 
       // Create user in Supabase Auth
+      const signupOptions: {
+        data: {
+          username: string
+          display_name: string
+        }
+        emailRedirectTo?: string
+      } = {
+        data: {
+          username,
+          display_name: username
+        }
+      }
+
+      const emailRedirectTo =
+        process.env.NEXT_PUBLIC_EMAIL_SIGNUP_REDIRECT ??
+        process.env.NEXT_PUBLIC_SUPABASE_REDIRECT_URL ??
+        (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined)
+
+      if (emailRedirectTo) {
+        signupOptions.emailRedirectTo = emailRedirectTo
+      }
+
       const { data: authData, error: authError } = await this.supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            username,
-            display_name: username
-          }
-        }
+        options: signupOptions
       })
 
       if (authError) throw authError
