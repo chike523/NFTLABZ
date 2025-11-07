@@ -5,32 +5,80 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import Link from 'next/link'
 import { CheckCircle, XCircle, Mail, ArrowLeft } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 function VerifyEmailContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading } = useAuth()
-  const [status, setStatus] = useState<'checking' | 'verified' | 'error'>('checking')
+  const [status, setStatus] = useState<'validating' | 'verified' | 'error'>('validating')
   const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const token = searchParams.get('token')
-    const type = searchParams.get('type')
-    const emailParam = searchParams.get('email')
+    const validateLink = async () => {
+      if (typeof window === 'undefined') {
+        setStatus('error')
+        setMessage('Email verification can only be completed in a browser session.')
+        return
+      }
 
-    if (emailParam) {
-      setEmail(emailParam)
+      const supabase = createClient()
+      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''))
+
+      const emailParam = searchParams.get('email') ?? hashParams.get('email')
+      const queryType = searchParams.get('type') ?? hashParams.get('type')
+      const error = searchParams.get('error') ?? hashParams.get('error')
+      const errorDescription = searchParams.get('error_description') ?? hashParams.get('error_description')
+      const code =
+        searchParams.get('code') ??
+        hashParams.get('code') ??
+        searchParams.get('token') ??
+        hashParams.get('token')
+
+      if (emailParam) {
+        setEmail(emailParam)
+      } else if (user?.email) {
+        setEmail(user.email)
+      }
+
+      if (error) {
+        setStatus('error')
+        setMessage(decodeURIComponent(errorDescription || 'Verification link is invalid or has expired.'))
+        return
+      }
+
+      try {
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          if (exchangeError) {
+            throw exchangeError
+          }
+
+          const { data: { user: refreshedUser } } = await supabase.auth.getUser()
+          if (refreshedUser?.email) {
+            setEmail(refreshedUser.email)
+          }
+
+          setStatus('verified')
+          return
+        }
+
+        if (queryType === 'signup' || user?.email_confirmed_at) {
+          setStatus('verified')
+          return
+        }
+
+        setStatus('error')
+        setMessage('Verification link is invalid or has expired.')
+      } catch (err: any) {
+        console.error('Email verification error:', err)
+        setStatus('error')
+        setMessage(err?.message || 'Verification link is invalid or has expired.')
+      }
     }
 
-    if (token && type === 'signup') {
-      // Email verification is handled by Supabase automatically
-      // This page is just for user feedback
-      setStatus('verified')
-    } else if (user?.email_confirmed_at) {
-      setStatus('verified')
-    } else {
-      setStatus('error')
-    }
+    validateLink()
   }, [searchParams, user])
 
   if (loading) {
@@ -59,12 +107,12 @@ function VerifyEmailContent() {
         </div>
 
         <div className="text-center space-y-6">
-          {status === 'checking' && (
+          {status === 'validating' && (
             <>
               <Mail className="h-16 w-16 mx-auto text-primary" />
               <h1 className="text-2xl font-bold text-foreground">Check Your Email</h1>
               <p className="text-muted-foreground">
-                We've sent a verification link to your email address.
+                Hold on while we verify your email link.
               </p>
               {email && (
                 <p className="text-sm text-muted-foreground">
@@ -103,7 +151,7 @@ function VerifyEmailContent() {
               <XCircle className="h-16 w-16 mx-auto text-red-500" />
               <h1 className="text-2xl font-bold text-foreground">Verification Failed</h1>
               <p className="text-muted-foreground">
-                The verification link may have expired or is invalid.
+                {message || 'The verification link may have expired or is invalid.'}
               </p>
               <div className="space-y-4">
                 <Link
