@@ -263,6 +263,10 @@ export default function MintPage() {
         setWalletBalance(updatedWallet.balance_after)
       }
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('dashboard:refresh-badges'))
+      }
+
       // Success!
       toast({
         title: "Success!",

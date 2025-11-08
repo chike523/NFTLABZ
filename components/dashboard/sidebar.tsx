@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
 import { useSiteName } from "@/hooks/use-settings"
 import { Badge } from "@/components/ui/badge"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { 
   FileText, 
   Edit, 
@@ -91,29 +91,42 @@ export default function Sidebar() {
   const siteName = useSiteName()
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
 
+  const fetchBadgeCounts = useCallback(async () => {
+    if (!user?.id) return
+
+    try {
+      const response = await fetch('/api/dashboard/badge-counts')
+      const data = await response.json()
+      
+      if (response.ok && data.counts) {
+        setBadgeCounts(data.counts)
+      }
+    } catch (error) {
+      console.error('Failed to fetch badge counts:', error)
+    }
+  }, [user?.id])
+
   // Fetch badge counts on mount and when user changes
   useEffect(() => {
-    const fetchBadgeCounts = async () => {
-      if (!user?.id) return
-
-      try {
-        const response = await fetch('/api/dashboard/badge-counts')
-        const data = await response.json()
-        
-        if (response.ok && data.counts) {
-          setBadgeCounts(data.counts)
-        }
-      } catch (error) {
-        console.error('Failed to fetch badge counts:', error)
-      }
-    }
-
     fetchBadgeCounts()
 
     // Refresh badge counts every 30 seconds
     const interval = setInterval(fetchBadgeCounts, 30000)
     return () => clearInterval(interval)
-  }, [user?.id])
+  }, [fetchBadgeCounts])
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    const handleRefresh = () => {
+      fetchBadgeCounts()
+    }
+
+    window.addEventListener('dashboard:refresh-badges', handleRefresh)
+    return () => {
+      window.removeEventListener('dashboard:refresh-badges', handleRefresh)
+    }
+  }, [fetchBadgeCounts, user?.id])
 
   const handleNavClick = async (item: typeof navigationItems[0], e: React.MouseEvent) => {
     // Mark page as read when navigating
