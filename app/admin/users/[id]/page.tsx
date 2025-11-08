@@ -1,14 +1,27 @@
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useState, use } from "react"
+import { useEffect, useState, use, useCallback } from "react"
 import AdminLayout from "@/components/admin/layout"
 import AdminHeader from "@/components/admin/header"
-import { ArrowLeft, CheckCircle2, Ban, UserX, Trash2, LogIn, Loader2 } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Ban, Trash2, LogIn, Loader2, Plus, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { adminQueries } from "@/lib/queries/admin"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/hooks/use-toast"
 
 interface UserDetailPageProps {
   params: Promise<{ id: string }>
@@ -21,30 +34,40 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loggingIn, setLoggingIn] = useState(false)
+  const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false)
+  const [adjustmentMode, setAdjustmentMode] = useState<"credit" | "debit">("credit")
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    amount: "",
+    transactionType: "",
+    note: "",
+    silent: false,
+  })
+  const [adjustmentSubmitting, setAdjustmentSubmitting] = useState(false)
+  const { toast } = useToast()
+
+  const fetchUserData = useCallback(async () => {
+    try {
+      setLoading(true)
+      const userId = resolvedParams.id
+
+      // Fetch user data (includes wallets, NFT count, and transactions)
+      const { data: userData, error: userError } = await adminQueries.getUserById(userId)
+      if (userError || !userData) {
+        setError(userError || 'User not found')
+        return
+      }
+      setUser(userData)
+    } catch (err) {
+      setError('Failed to fetch user data')
+      console.error('Error fetching user data:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [resolvedParams.id])
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        setLoading(true)
-        const userId = resolvedParams.id
-        
-        // Fetch user data (includes wallets, NFT count, and transactions)
-        const { data: userData, error: userError } = await adminQueries.getUserById(userId)
-        if (userError || !userData) {
-          setError(userError || 'User not found')
-          return
-        }
-        setUser(userData)
-      } catch (err) {
-        setError('Failed to fetch user data')
-        console.error('Error fetching user data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchUserData()
-  }, [resolvedParams.id])
+  }, [fetchUserData])
 
   const handleLoginAsUser = async () => {
     if (!user) return
@@ -94,6 +117,126 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
       alert(error instanceof Error ? error.message : 'Failed to login as user')
       setLoggingIn(false)
     }
+  }
+
+  const openAdjustmentModal = (mode: "credit" | "debit") => {
+    setAdjustmentMode(mode)
+    setAdjustmentForm({
+      amount: "",
+      transactionType: mode === "credit" ? "admin_credit" : "admin_debit",
+      note: "",
+      silent: false,
+    })
+    setIsAdjustmentModalOpen(true)
+  }
+
+  const handleModalOpenChange = (open: boolean) => {
+    if (!open && adjustmentSubmitting) {
+      return
+    }
+    setIsAdjustmentModalOpen(open)
+  }
+
+  const closeAdjustmentModal = () => {
+    if (adjustmentSubmitting) return
+    setIsAdjustmentModalOpen(false)
+  }
+
+  const handleAdjustmentInputChange = (field: "amount" | "transactionType" | "note") => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const value = event.target.value
+    setAdjustmentForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleAdjustmentSilentToggle = (checked: boolean) => {
+    setAdjustmentForm((prev) => ({
+      ...prev,
+      silent: checked,
+    }))
+  }
+
+  const handleAdjustmentSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!user?.id) {
+      toast({
+        title: "User not loaded",
+        description: "Please wait for the user data to finish loading.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const amountValue = Number.parseFloat(adjustmentForm.amount)
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Enter an amount greater than 0.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const typeValue = adjustmentForm.transactionType.trim()
+    if (!typeValue) {
+      toast({
+        title: "Transaction type required",
+        description: "Provide a transaction type label to track this adjustment.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const noteValue = adjustmentForm.note.trim()
+
+    const submitAdjustment = async () => {
+      try {
+        setAdjustmentSubmitting(true)
+
+        const response = await fetch(`/api/admin/users/${user.id}/wallet`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: adjustmentMode,
+            amount: amountValue,
+            transactionType: typeValue,
+            note: noteValue || undefined,
+            silent: adjustmentForm.silent,
+          }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to apply wallet adjustment.")
+        }
+
+        toast({
+          title: adjustmentMode === "credit" ? "Wallet credited" : "Wallet debited",
+          description: adjustmentMode === "credit"
+            ? `${amountValue} ETH added to the user’s wallet.`
+            : `${amountValue} ETH removed from the user’s wallet.`,
+        })
+
+        closeAdjustmentModal()
+        await fetchUserData()
+      } catch (err) {
+        console.error("Wallet adjustment failed:", err)
+        toast({
+          title: "Adjustment failed",
+          description: err instanceof Error ? err.message : "Unable to adjust the wallet. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setAdjustmentSubmitting(false)
+      }
+    }
+
+    void submitAdjustment()
   }
 
   if (loading) {
@@ -155,6 +298,24 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
               </p>
             </div>
             <div className="ml-auto flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-emerald-600 text-emerald-400 hover:bg-emerald-600/10"
+                onClick={() => openAdjustmentModal("credit")}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Credit User
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-600 text-red-400 hover:bg-red-600/10"
+                onClick={() => openAdjustmentModal("debit")}
+              >
+                <Minus className="h-4 w-4 mr-2" />
+                Debit User
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -272,6 +433,94 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
           </div>
         </div>
       </div>
+
+      <Dialog open={isAdjustmentModalOpen} onOpenChange={handleModalOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {adjustmentMode === "credit" ? "Credit User Wallet" : "Debit User Wallet"}
+            </DialogTitle>
+            <DialogDescription>
+              {adjustmentMode === "credit"
+                ? "Add funds to the user’s wallet. Visible adjustments can notify the user and appear in their transaction history."
+                : "Remove funds from the user’s wallet. Ensure sufficient balance before debiting. Visible adjustments can notify the user and appear in their transaction history."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-6" onSubmit={handleAdjustmentSubmit}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="adjustment-amount">Amount (ETH)</Label>
+                <Input
+                  id="adjustment-amount"
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  value={adjustmentForm.amount}
+                  onChange={handleAdjustmentInputChange("amount")}
+                  placeholder="0.0000"
+                  required
+                  disabled={adjustmentSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="transaction-type">Transaction Type</Label>
+                <Input
+                  id="transaction-type"
+                  value={adjustmentForm.transactionType}
+                  onChange={handleAdjustmentInputChange("transactionType")}
+                  placeholder="e.g. admin_credit, bonus_reward"
+                  required
+                  disabled={adjustmentSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="transaction-note">Note (optional)</Label>
+                <Textarea
+                  id="transaction-note"
+                  value={adjustmentForm.note}
+                  onChange={handleAdjustmentInputChange("note")}
+                  placeholder="Provide additional context for this adjustment"
+                  rows={3}
+                  disabled={adjustmentSubmitting}
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Silent adjustment</p>
+                  <p className="text-xs text-muted-foreground">
+                    When enabled, the user will not receive notifications and no transaction record will be created.
+                  </p>
+                </div>
+                <Switch
+                  checked={adjustmentForm.silent}
+                  onCheckedChange={handleAdjustmentSilentToggle}
+                  disabled={adjustmentSubmitting}
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={closeAdjustmentModal} disabled={adjustmentSubmitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={adjustmentSubmitting}>
+                {adjustmentSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  adjustmentMode === "credit" ? "Credit Wallet" : "Debit Wallet"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   )
 }

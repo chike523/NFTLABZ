@@ -15,6 +15,7 @@ import { getNftPurchasedTemplate, NftPurchasedData } from './templates/nft-purch
 import { getWelcomeTemplate, WelcomeEmailData } from './templates/welcome'
 import { getPasswordResetTemplate, PasswordResetData } from './templates/password-reset'
 import { getSupportReplyTemplate, SupportReplyData } from './templates/support-reply'
+import { getWalletAdjustmentTemplate, WalletAdjustmentData } from './templates/wallet-adjustment'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export class EmailNotificationService {
@@ -258,6 +259,27 @@ export class EmailNotificationService {
     } catch (error) {
       console.error('[Email] Support reply failed:', error)
       await this.logEmail(to, 'Support Reply', 'support_reply', 'failed', error instanceof Error ? error.message : 'Unknown error')
+      throw error
+    }
+  }
+
+  /**
+   * Send wallet adjustment notification to user
+   */
+  static async sendWalletAdjustment(to: string, data: WalletAdjustmentData) {
+    try {
+      const { subject, html, text } = getWalletAdjustmentTemplate(data)
+      await sendMail({ to, subject, html, text })
+      await this.logEmail(to, subject, `wallet_${data.action}`, 'sent')
+    } catch (error) {
+      console.error('[Email] Wallet adjustment notification failed:', error)
+      await this.logEmail(
+        to,
+        `Wallet ${data.action}`,
+        `wallet_${data.action}`,
+        'failed',
+        error instanceof Error ? error.message : 'Unknown error'
+      )
       throw error
     }
   }
