@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 interface MintRequestBody {
   title: string
@@ -14,6 +15,7 @@ type WalletUpdateColumn = 'balance_eth' | 'balance'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
+  const adminSupabase = createAdminClient()
 
   const {
     data: { user },
@@ -75,7 +77,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Fetch minting fee setting
-  const { data: feeSetting, error: feeError } = await supabase
+  const { data: feeSetting, error: feeError } = await adminSupabase
     .from('site_settings')
     .select('value, type')
     .eq('key', 'minting_fee_eth')
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Fetch user's primary wallet
-  const { data: wallet, error: walletError } = await supabase
+  const { data: wallet, error: walletError } = await adminSupabase
     .from('wallets')
     .select('id, balance_eth, balance, balance_usd, user_id, is_primary')
     .eq('user_id', user.id)
@@ -131,7 +133,7 @@ export async function POST(request: NextRequest) {
   if (mintingFee > 0) {
     balanceAfter = parseFloat((currentBalance - mintingFee).toFixed(8))
 
-    const walletUpdate = await supabase
+    const walletUpdate = await adminSupabase
       .from('wallets')
       .update({ balance_eth: balanceAfter })
       .eq('id', wallet.id)
@@ -140,7 +142,7 @@ export async function POST(request: NextRequest) {
 
     if (walletUpdate.error) {
       if (walletUpdate.error.message?.includes('balance_eth')) {
-        const fallbackUpdate = await supabase
+        const fallbackUpdate = await adminSupabase
           .from('wallets')
           .update({ balance: balanceAfter })
           .eq('id', wallet.id)
@@ -183,7 +185,7 @@ export async function POST(request: NextRequest) {
       status: 'pending',
     }
 
-    const { data: nft, error: nftError } = await supabase
+    const { data: nft, error: nftError } = await adminSupabase
       .from('nfts')
       .insert(nftInsertPayload)
       .select('*')
@@ -193,7 +195,7 @@ export async function POST(request: NextRequest) {
       console.error('[Mint] NFT insert failed:', nftError)
       if (walletUpdated && mintingFee > 0) {
         await revertWalletBalance(
-          supabase,
+          adminSupabase,
           wallet.id,
           user.id,
           currentBalance,
@@ -219,7 +221,7 @@ export async function POST(request: NextRequest) {
         platform_fee: mintingFee,
       }
 
-      let transactionResult = await supabase
+      let transactionResult = await adminSupabase
         .from('transactions')
         .insert(transactionPayload)
         .select('id')
@@ -227,10 +229,10 @@ export async function POST(request: NextRequest) {
 
       if (transactionResult.error) {
         console.error('[Mint] Transaction insert failed:', transactionResult.error)
-        await supabase.from('nfts').delete().eq('id', nft.id)
+        await adminSupabase.from('nfts').delete().eq('id', nft.id)
         if (walletUpdated) {
           await revertWalletBalance(
-            supabase,
+            adminSupabase,
             wallet.id,
             user.id,
             currentBalance,
@@ -262,7 +264,7 @@ export async function POST(request: NextRequest) {
     console.error('[Mint] Unexpected error:', error)
     if (walletUpdated && mintingFee > 0) {
       await revertWalletBalance(
-        supabase,
+        adminSupabase,
         wallet.id,
         user.id,
         currentBalance,
@@ -275,7 +277,7 @@ export async function POST(request: NextRequest) {
 }
 
 async function revertWalletBalance(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
   walletId: string,
   userId: string,
   balance: number,
