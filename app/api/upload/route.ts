@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,19 +32,39 @@ export async function POST(request: NextRequest) {
     const randomString = Math.random().toString(36).substring(2, 15)
     const extension = file.name.split('.').pop() || 'jpg'
     const filename = `${timestamp}_${randomString}.${extension}`
+    const storagePath = `${folder}/${filename}`
 
-    // Ensure directory exists
-    const uploadDir = join(process.cwd(), 'public', 'uploads', folder)
-    await mkdir(uploadDir, { recursive: true })
-
-    // Convert file to buffer and save
+    // Convert file to buffer for upload
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const filePath = join(uploadDir, filename)
-    await writeFile(filePath, buffer)
 
-    // Return public URL
-    const publicUrl = `/uploads/${folder}/${filename}`
+    const supabase = createAdminClient()
+
+    const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOADS_BUCKET || 'uploads'
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(storagePath, buffer, {
+        contentType: file.type,
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('Upload error (Supabase):', uploadError)
+      if (uploadError.message?.includes('already exists')) {
+        return NextResponse.json({ error: 'File already exists. Please try again.' }, { status: 409 })
+      }
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    }
+
+    const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(storagePath)
+    const publicUrl = publicUrlData?.publicUrl
+
+    if (!publicUrl) {
+      console.error('Failed to generate public URL for upload:', storagePath)
+      return NextResponse.json({ error: 'Failed to generate file URL' }, { status: 500 })
+    }
 
     return NextResponse.json({ 
       success: true, 
