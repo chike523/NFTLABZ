@@ -298,40 +298,41 @@ export class NFTQueries {
   }
 
   // Create new NFT
-  async createNFT(userId: string, nftData: CreateNFTData): Promise<{ data: NFT | null; error: string | null }> {
+  async createNFT(
+    nftData: CreateNFTData,
+  ): Promise<{
+    data: NFT | null
+    error: string | null
+    minting_fee?: number
+    wallet?: { balance_before: number; balance_after: number }
+  }> {
     try {
-      console.log('Creating NFT with data:', { userId, nftData })
-      
-      const insertData = {
-        owner_id: userId,
-        creator_id: userId,
-        ...nftData,
-        status: 'pending'
-      }
-      
-      console.log('Insert data:', insertData)
-      
-      // Step 1: Insert the NFT without joins to avoid FK resolution issues
-      const { data: insertedData, error: insertError } = await this.supabase
-        .from('nfts')
-        .insert(insertData)
-        .select('*')
-        .single()
+      const response = await fetch('/api/dashboard/mint', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(nftData),
+      })
 
-      if (insertError) {
-        console.error('Supabase insert error:', insertError)
-        throw insertError
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to mint NFT')
       }
-      
-      console.log('NFT inserted successfully:', insertedData)
-      
-      // For now, just return the inserted data
-      // We'll fetch full details with relationships later if needed
-      console.log('NFT created successfully:', insertedData)
-      return { data: insertedData as NFT, error: null }
+
+      return {
+        data: result.data as NFT,
+        error: null,
+        minting_fee: result.minting_fee ?? 0,
+        wallet: result.wallet ?? undefined,
+      }
     } catch (error) {
       console.error('Error creating NFT:', error)
-      return { data: null, error: error instanceof Error ? error.message : 'Failed to create NFT' }
+      return {
+        data: null,
+        error: error instanceof Error ? error.message : 'Failed to create NFT',
+      }
     }
   }
 

@@ -24,7 +24,8 @@ export function GeneralSettings({ settings, onSave }: GeneralSettingsProps) {
     email: '',
     timezone: 'UTC',
     allowed_file_formats: '["jpg", "jpeg", "png", "gif", "webp", "svg", "mp4", "mov", "webm"]',
-    maintenance_mode: false
+    maintenance_mode: false,
+    minting_fee_eth: '0'
   })
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
@@ -39,6 +40,9 @@ export function GeneralSettings({ settings, onSave }: GeneralSettingsProps) {
         initialData[setting.key] = setting.value || ''
       }
     })
+    if (initialData.minting_fee_eth === undefined || initialData.minting_fee_eth === null || initialData.minting_fee_eth === '') {
+      initialData.minting_fee_eth = '0'
+    }
     setFormData(initialData)
   }, [settings])
 
@@ -101,6 +105,16 @@ export function GeneralSettings({ settings, onSave }: GeneralSettingsProps) {
         toast({
           title: "Validation Error", 
           description: "Please enter a valid email address.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const mintingFee = parseFloat((formData.minting_fee_eth ?? '').toString())
+      if (isNaN(mintingFee) || mintingFee < 0) {
+        toast({
+          title: "Validation Error",
+          description: "Minting fee must be a number greater than or equal to 0.",
           variant: "destructive",
         })
         return
@@ -171,6 +185,24 @@ export function GeneralSettings({ settings, onSave }: GeneralSettingsProps) {
             />
             <p className="text-xs text-muted-foreground">
               This email will be used for all contact, support, legal, and privacy inquiries
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label htmlFor="minting_fee_eth">Minting Fee (ETH)</Label>
+            <Input
+              id="minting_fee_eth"
+              type="number"
+              min="0"
+              step="0.0001"
+              value={formData.minting_fee_eth}
+              onChange={(e) => handleInputChange('minting_fee_eth', e.target.value)}
+              placeholder="0"
+            />
+            <p className="text-xs text-muted-foreground">
+              Amount of ETH deducted from a user&apos;s wallet before minting. Set to 0 to disable the fee.
             </p>
           </div>
         </div>

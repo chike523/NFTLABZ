@@ -1,20 +1,22 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/dashboard/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Image as ImageIcon, X, AlertCircle, Loader2, Sparkles } from "lucide-react"
+import { Upload, X, AlertCircle, Loader2, Sparkles } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { nftQueries, categoryQueries } from "@/lib/queries"
+import { useSettings } from "@/contexts/settings-context"
+import { nftQueries, categoryQueries, userQueries } from "@/lib/queries"
 import { toast } from "@/components/ui/use-toast"
 
 export default function MintPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { settings, loading: settingsLoading } = useSettings()
   
   // Form state
   const [title, setTitle] = useState("")
@@ -30,6 +32,21 @@ export default function MintPage() {
   const [categories, setCategories] = useState<any[]>([])
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  const [loadingBalance, setLoadingBalance] = useState(true)
+
+  const mintingFee = useMemo(() => {
+    if (!settings) return 0
+    const raw = settings.minting_fee_eth
+    if (typeof raw === 'number') {
+      return raw >= 0 ? raw : 0
+    }
+    if (typeof raw === 'string') {
+      const parsed = parseFloat(raw)
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+    }
+    return 0
+  }, [settings])
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -48,6 +65,56 @@ export default function MintPage() {
 
     fetchCategories()
   }, [])
+
+  useEffect(() => {
+    if (!user?.id) {
+      setWalletBalance(null)
+      setLoadingBalance(false)
+      return
+    }
+
+    let isMounted = true
+
+    const fetchBalance = async () => {
+      try {
+        setLoadingBalance(true)
+        const result = await userQueries.getUserWalletBalance(user.id)
+        if (!isMounted) return
+
+        if (!result.error) {
+          setWalletBalance(result.balance_eth)
+        } else {
+          console.error('Error fetching wallet balance:', result.error)
+          setWalletBalance(0)
+          toast({
+            title: "Wallet Error",
+            description: "We could not load your wallet balance. Minting may fail.",
+            variant: "destructive"
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching wallet balance:', error)
+        if (isMounted) {
+          setWalletBalance(0)
+          toast({
+            title: "Wallet Error",
+            description: "We could not load your wallet balance. Minting may fail.",
+            variant: "destructive"
+          })
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingBalance(false)
+        }
+      }
+    }
+
+    fetchBalance()
+
+    return () => {
+      isMounted = false
+    }
+  }, [user?.id])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -146,6 +213,15 @@ export default function MintPage() {
       return
     }
 
+    if (!loadingBalance && walletBalance !== null && mintingFee > 0 && walletBalance < mintingFee) {
+      toast({
+        title: "Insufficient Balance",
+        description: `You need at least ${mintingFee} ETH in your wallet to cover the minting fee.`,
+        variant: "destructive"
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -177,10 +253,14 @@ export default function MintPage() {
         royalty_percentage: parseFloat(royaltyPercentage)
       }
 
-      const { data: nft, error } = await nftQueries.createNFT(user.id, nftData)
+      const { data: nft, error, wallet: updatedWallet } = await nftQueries.createNFT(nftData)
 
       if (error) {
         throw new Error(error)
+      }
+
+      if (updatedWallet?.balance_after !== undefined && updatedWallet?.balance_after !== null) {
+        setWalletBalance(updatedWallet.balance_after)
       }
 
       // Success!
@@ -204,6 +284,11 @@ export default function MintPage() {
       setLoading(false)
     }
   }
+
+  const insufficientBalance = !loadingBalance && walletBalance !== null && mintingFee > 0 && walletBalance < mintingFee
+  const formattedMintingFee = mintingFee.toFixed(4)
+  const formattedWalletBalance =
+    walletBalance !== null ? walletBalance.toFixed(4) : '0.0000'
 
   return (
     <DashboardLayout>
@@ -412,11 +497,41 @@ export default function MintPage() {
               </div>
             </div>
 
+            {/* Minting Fee Summary */}
+            <div className="bg-muted/30 border border-border rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Minting Fee</span>
+                <span className="font-medium text-foreground">
+                  {settingsLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    `${formattedMintingFee} ETH`
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Wallet Balance</span>
+                <span className="font-medium text-foreground">
+                  {loadingBalance ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    `${formattedWalletBalance} ETH`
+                  )}
+                </span>
+              </div>
+              {insufficientBalance && (
+                <div className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>You do not have enough ETH to cover the minting fee.</span>
+                </div>
+              )}
+            </div>
+
             {/* Mint Button */}
             <div className="pt-4">
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || insufficientBalance}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 text-base"
               >
                 {loading ? (
