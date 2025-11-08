@@ -87,8 +87,13 @@ const heroImages = [
   },
   {
     id: 15,
-    image: "/abstract-artistic-portrait-colorful.jpg",
+    image: "/herocar.jpeg",
     title: "Featured Art 15",
+  },
+  {
+    id: 16,
+    image: "/degods.webp",
+    title: "Featured Art 16",
   },
 ]
 
