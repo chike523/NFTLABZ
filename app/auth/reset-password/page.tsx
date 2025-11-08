@@ -245,35 +245,3 @@ export default function ResetPasswordPage() {
     </Suspense>
   )
 }
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
-
-          <div className="text-center text-sm text-muted-foreground">
-            <p>Password requirements:</p>
-            <ul className="text-xs space-y-1 mt-2">
-              <li>• At least 8 characters</li>
-              <li>• One uppercase letter</li>
-              <li>• One lowercase letter</li>
-              <li>• One number</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export default function ResetPasswordPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>}>
-      <ResetPasswordContent />
-    </Suspense>
-  )
-}
