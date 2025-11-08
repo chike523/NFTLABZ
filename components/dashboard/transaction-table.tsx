@@ -33,26 +33,28 @@ export default function TransactionTable({ transactions, emptyMessage = "No tran
   }
 
   const parseTransactionMeta = (transaction: Transaction): { label: string; note?: string | null } => {
-    if (transaction.admin_note) {
-      try {
-        const parsed = JSON.parse(transaction.admin_note)
-        if (parsed && typeof parsed === 'object') {
-          const label =
-            typeof parsed.label === 'string' && parsed.label.trim()
-              ? parsed.label.trim()
-              : transaction.type
+    const label = transaction.type
 
-          const note =
-            typeof parsed.note === 'string' && parsed.note.trim() ? parsed.note.trim() : null
-
-          return { label, note }
-        }
-      } catch (error) {
-        console.warn('Failed to parse transaction admin_note metadata:', error)
-      }
+    if (!transaction.admin_note) {
+      return { label }
     }
 
-    return { label: transaction.type }
+    try {
+      const parsed = JSON.parse(transaction.admin_note)
+      if (parsed && typeof parsed === 'object') {
+        const note =
+          typeof parsed.note === 'string' && parsed.note.trim() ? parsed.note.trim() : null
+        return { label, note }
+      }
+    } catch (error) {
+      console.warn('Failed to parse transaction admin_note metadata:', error)
+    }
+
+    if (typeof transaction.admin_note === 'string' && transaction.admin_note.trim()) {
+      return { label, note: transaction.admin_note.trim() }
+    }
+
+    return { label }
   }
 
   const getStatusColor = (status: string) => {

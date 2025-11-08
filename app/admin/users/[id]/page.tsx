@@ -142,28 +142,28 @@ export default function UserDetailPage() {
   }
 
   const parseTransactionMeta = (transaction: any): { label: string; note?: string | null } => {
+    const label = transaction?.type || 'transaction'
+
     if (!transaction?.admin_note) {
-      return { label: transaction?.type || 'transaction' }
+      return { label }
     }
 
     try {
       const parsed = JSON.parse(transaction.admin_note)
       if (parsed && typeof parsed === 'object') {
-        const label =
-          typeof parsed.label === 'string' && parsed.label.trim()
-            ? parsed.label.trim()
-            : transaction.type
-
         const note =
           typeof parsed.note === 'string' && parsed.note.trim() ? parsed.note.trim() : null
-
         return { label, note }
       }
     } catch (error) {
       console.warn('Failed to parse transaction admin_note metadata:', error)
     }
 
-    return { label: transaction?.type || 'transaction' }
+    if (typeof transaction.admin_note === 'string' && transaction.admin_note.trim()) {
+      return { label, note: transaction.admin_note.trim() }
+    }
+
+    return { label }
   }
 
   const handleAdjustmentInputChange = (field: "amount" | "note") => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

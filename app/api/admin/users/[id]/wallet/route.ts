@@ -163,12 +163,13 @@ export async function POST(
     let notificationSent = false
 
     if (!silent) {
-      const trimmedNote = note?.toString().trim() || null
-      const adminNotePayload = JSON.stringify({
-        label: action === 'credit' ? 'Administrative credit' : 'Administrative debit',
-        note: trimmedNote,
-        action,
-      })
+      const trimmedNote = note?.toString().trim()
+      const adminNotePayload = trimmedNote
+        ? JSON.stringify({
+            note: trimmedNote,
+            action,
+          })
+        : null
 
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
