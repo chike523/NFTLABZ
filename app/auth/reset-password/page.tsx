@@ -1,272 +1,151 @@
 "use client"
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '@/contexts/auth-context'
-import Link from 'next/link'
-import { Eye, EyeOff, CheckCircle, XCircle, ArrowLeft } from 'lucide-react'
-import AuthFormInput from '@/components/auth-form-input'
-import { createClient } from '@/lib/supabase/client'
+/**
+ * Supabase setup: ensure `https://artistichubworldwide.com/auth/reset-password`
+ * is listed under Authentication → URL Configuration → Redirect URLs so reset links
+ * sent via email are accepted across devices.
+ */
+
+import { useEffect, useState, Suspense } from "react"
+import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Eye, EyeOff, CheckCircle, XCircle, ArrowLeft } from "lucide-react"
+import AuthFormInput from "@/components/auth-form-input"
+import { createClient } from "@/lib/supabase/client"
+
+type ViewState = "verifying" | "form" | "success" | "error"
 
 function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { updatePassword } = useAuth()
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [viewState, setViewState] = useState<ViewState>("verifying")
+  const [message, setMessage] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [submitting, setSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'validating' | 'form' | 'success' | 'error'>('validating')
-  const [error, setError] = useState('')
-  const [email, setEmail] = useState('')
 
   useEffect(() => {
-    const validateRecoveryLink = async () => {
-      if (typeof window === 'undefined') {
-        setStatus('error')
-        setError('Password reset is only available in the browser.')
-        return
-      }
+    const code = searchParams.get("code")
 
-      const supabase = createClient()
-
-      const hashParams = new URLSearchParams(window.location.hash.replace('#', ''))
-      
-      // Extract all possible parameters
-      const queryType = searchParams.get('type') ?? hashParams.get('type')
-      const accessToken = searchParams.get('access_token') ?? hashParams.get('access_token')
-      const refreshToken = searchParams.get('refresh_token') ?? hashParams.get('refresh_token')
-      const code = searchParams.get('code') ?? hashParams.get('code')
-      let token = searchParams.get('token') ?? hashParams.get('token')
-      let tokenHash = searchParams.get('token_hash') ?? hashParams.get('token_hash')
-      const emailParam = searchParams.get('email') ?? hashParams.get('email')
-      
-      // If we only have a code but no token/token_hash, try to extract from the full URL
-      // Supabase sometimes embeds these in the redirect_to parameter
-      if (code && !token && !tokenHash) {
-        const fullUrl = window.location.href
-        const redirectToMatch = fullUrl.match(/redirect_to=([^&]+)/)
-        if (redirectToMatch) {
-          try {
-            const redirectUrl = decodeURIComponent(redirectToMatch[1])
-            const redirectParams = new URLSearchParams(redirectUrl.split('?')[1] || '')
-            token = token || redirectParams.get('token')
-            tokenHash = tokenHash || redirectParams.get('token_hash')
-          } catch (e) {
-            console.warn('Failed to parse redirect_to parameter:', e)
-          }
-        }
-      }
-
-      console.log('🔍 Reset password debug:', {
-        queryType,
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        hasCode: !!code,
-        hasToken: !!token,
-        hasTokenHash: !!tokenHash,
-        email: emailParam,
-        fullHash: window.location.hash,
-        fullSearch: window.location.search
-      })
-
-      if (emailParam) {
-        setEmail(emailParam)
-      }
-
-      if (!(accessToken && refreshToken) && !code && !token && !tokenHash) {
-        setStatus('error')
-        setError('Invalid or expired reset link. Please request a new password reset.')
-        return
-      }
-
-      try {
-        const attemptOtpFallback = async () => {
-          if (tokenHash) {
-            const { error: verifyByHashError } = await supabase.auth.verifyOtp({
-              type: 'recovery',
-              token_hash: tokenHash
-            })
-            if (!verifyByHashError) {
-              return true
-            }
-            console.error('Password recovery token_hash verification failed:', verifyByHashError)
-          }
-
-          if (token && (emailParam || email)) {
-            const { error: verifyByTokenError } = await supabase.auth.verifyOtp({
-              type: 'recovery',
-              email: emailParam || email,
-              token
-            })
-
-            if (!verifyByTokenError) {
-              return true
-            }
-
-            console.error('Password recovery OTP verification failed:', verifyByTokenError)
-          }
-
-          return false
-        }
-
-        if (code) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (exchangeError) {
-            const normalizedMessage = exchangeError.message?.toLowerCase?.() ?? ''
-            const isCodeVerifierMissing =
-              normalizedMessage.includes('code verifier') || normalizedMessage.includes('code_verifier')
-
-            if (!isCodeVerifierMissing) {
-              throw exchangeError
-            }
-
-            console.warn('Password recovery PKCE verifier missing, attempting OTP fallback.')
-            const fallbackSuccess = await attemptOtpFallback()
-            if (!fallbackSuccess) {
-              throw exchangeError
-            }
-          }
-        } else if (accessToken && refreshToken) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          })
-
-          if (sessionError) throw sessionError
-        } else {
-          const fallbackSuccess = await attemptOtpFallback()
-          if (!fallbackSuccess) {
-            throw new Error('Unable to verify password reset link. Please request a new link.')
-          }
-        }
-
-        if (queryType !== 'recovery') {
-          // Not strictly required, but warn if type mismatch
-          console.warn('Unexpected password reset type provided:', queryType)
-        }
-
-        setStatus('form')
-      } catch (err) {
-        console.error('Password recovery session error:', err)
-        setStatus('error')
-        setError('Invalid or expired reset link. Please request a new password reset.')
-      }
+    if (!code) {
+      setMessage("Invalid or expired reset link. Please request a new password reset.")
+      setViewState("error")
+      return
     }
 
-    validateRecoveryLink()
+    const verifyLink = async () => {
+      const supabase = createClient()
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+      if (error) {
+        console.error("Password reset verification failed:", error)
+        setMessage("Invalid or expired reset link. Please request a new password reset.")
+        setViewState("error")
+        return
+      }
+
+      setViewState("form")
+    }
+
+    verifyLink()
   }, [searchParams])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setMessage("")
 
-    // Validation
     if (password.length < 8) {
-      setError('Password must be at least 8 characters long')
+      setMessage("Password must be at least 8 characters long.")
       return
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setMessage("Passwords do not match.")
       return
     }
 
-    if (!/[A-Z]/.test(password)) {
-      setError('Password must contain at least one uppercase letter')
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      setMessage("Password must include uppercase, lowercase, and numeric characters.")
       return
     }
 
-    if (!/[a-z]/.test(password)) {
-      setError('Password must contain at least one lowercase letter')
+    setSubmitting(true)
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.updateUser({ password })
+
+    if (error) {
+      console.error("Password update failed:", error)
+      setMessage(error.message || "Failed to update password.")
+      setSubmitting(false)
       return
     }
 
-    if (!/[0-9]/.test(password)) {
-      setError('Password must contain at least one number')
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      const result = await updatePassword(password)
-      
-      if (result.success) {
-        setStatus('success')
-        setTimeout(() => {
-          router.push('/auth/signin')
-        }, 3000)
-      } else {
-        setError(result.error || 'Failed to update password')
-      }
-    } catch (err) {
-      setError('An unexpected error occurred')
-    } finally {
-      setLoading(false)
-    }
+    setViewState("success")
+    setMessage("Password updated successfully! Redirecting to sign in...")
+    setSubmitting(false)
+    setTimeout(() => router.push("/auth/signin"), 3000)
   }
 
-  if (status === 'validating') {
+  if (viewState === "verifying") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md w-full space-y-6">
-          <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
-            <h1 className="text-xl font-semibold text-foreground">Preparing reset link…</h1>
-            <p className="text-sm text-muted-foreground">
-              Hang tight while we verify the password reset link.
-            </p>
-          </div>
+        <div className="max-w-md w-full space-y-6 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+          <h1 className="text-xl font-semibold text-foreground">Verifying reset link…</h1>
+          <p className="text-sm text-muted-foreground">
+            Hang tight while we confirm this password reset request.
+          </p>
         </div>
       </div>
     )
   }
 
-  if (status === 'success') {
+  if (viewState === "success") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md w-full space-y-6">
-          <div className="text-center space-y-6">
-            <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
-            <h1 className="text-2xl font-bold text-foreground">Password Updated!</h1>
-            <p className="text-muted-foreground">
-              Your password has been successfully updated. You can now sign in with your new password.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Redirecting you to sign in...
-            </p>
-          </div>
+        <div className="max-w-md w-full space-y-6 text-center">
+          <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
+          <h1 className="text-2xl font-bold text-foreground">Password Updated!</h1>
+          <p className="text-muted-foreground">
+            {message || "Your password has been updated successfully."}
+          </p>
+          <p className="text-sm text-muted-foreground">Redirecting you to sign in…</p>
+          <Link
+            href="/auth/signin"
+            className="inline-block bg-primary text-primary-foreground py-3 px-4 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+          >
+            Go to Sign In
+          </Link>
         </div>
       </div>
     )
   }
 
-  if (status === 'error') {
+  if (viewState === "error") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md w-full space-y-6">
-          <div className="text-center space-y-6">
-            <XCircle className="h-16 w-16 mx-auto text-red-500" />
-            <h1 className="text-2xl font-bold text-foreground">Invalid Link</h1>
-            <p className="text-muted-foreground">
-              {error}
-            </p>
-            <div className="space-y-4">
-              <Link
-                href="/auth/forgot-password"
-                className="inline-block w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg font-medium hover:bg-primary/90 transition-colors"
-              >
-                Request New Reset Link
-              </Link>
-              <Link
-                href="/auth/signin"
-                className="inline-block w-full border border-input bg-background text-foreground py-3 px-4 rounded-lg font-medium hover:bg-accent transition-colors"
-              >
-                Back to Sign In
-              </Link>
-            </div>
+        <div className="max-w-md w-full space-y-6 text-center">
+          <XCircle className="h-16 w-16 mx-auto text-red-500" />
+          <h1 className="text-2xl font-bold text-foreground">Invalid Link</h1>
+          <p className="text-muted-foreground">
+            {message || "The password reset link may have expired or is invalid."}
+          </p>
+          <div className="space-y-3">
+            <Link
+              href="/auth/forgot-password"
+              className="inline-block w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+            >
+              Request New Reset Link
+            </Link>
+            <Link
+              href="/auth/signin"
+              className="inline-block w-full border border-input bg-background text-foreground py-3 px-4 rounded-lg font-medium hover:bg-accent transition-colors"
+            >
+              Back to Sign In
+            </Link>
           </div>
         </div>
       </div>
@@ -276,9 +155,8 @@ function ResetPasswordContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="max-w-md w-full space-y-6">
-        {/* Back Button */}
         <div className="flex justify-start">
-          <Link 
+          <Link
             href="/auth/signin"
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -290,9 +168,7 @@ function ResetPasswordContent() {
         <div className="space-y-6">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground mb-2">Reset Password</h1>
-            <p className="text-muted-foreground">
-              Enter your new password below
-            </p>
+            <p className="text-muted-foreground">Enter your new password below.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -332,11 +208,43 @@ function ResetPasswordContent() {
               </div>
             </div>
 
-            {error && (
+            {message && (
               <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-                {error}
+                {message}
               </div>
             )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? "Updating..." : "Update Password"}
+            </button>
+          </form>
+
+          <div className="text-center text-sm text-muted-foreground">
+            <p>Password requirements:</p>
+            <ul className="text-xs space-y-1 mt-2">
+              <li>• At least 8 characters</li>
+              <li>• One uppercase letter</li>
+              <li>• One lowercase letter</li>
+              <li>• One number</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background">Loading...</div>}>
+      <ResetPasswordContent />
+    </Suspense>
+  )
+}
 
             <button
               type="submit"
