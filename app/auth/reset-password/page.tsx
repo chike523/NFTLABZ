@@ -27,26 +27,95 @@ function ResetPasswordContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   useEffect(() => {
-    const code = searchParams.get("code")
-
-    if (!code) {
-      setMessage("Invalid or expired reset link. Please request a new password reset.")
-      setViewState("error")
-      return
-    }
-
     const verifyLink = async () => {
-      const supabase = createClient()
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (typeof window === "undefined") {
+        setMessage("Password reset is only available in the browser.")
+        setViewState("error")
+        return
+      }
 
-      if (error) {
-        console.error("Password reset verification failed:", error)
+      const hashParams = new URLSearchParams(window.location.hash.replace("#", ""))
+      const code = searchParams.get("code") ?? hashParams.get("code")
+      const token = searchParams.get("token") ?? hashParams.get("token")
+      const tokenHash = searchParams.get("token_hash") ?? hashParams.get("token_hash")
+      const emailParam = searchParams.get("email") ?? hashParams.get("email")
+
+      if (!code && !token && !tokenHash) {
         setMessage("Invalid or expired reset link. Please request a new password reset.")
         setViewState("error")
         return
       }
 
-      setViewState("form")
+      const supabase = createClient()
+
+      const attemptOtpFallback = async () => {
+        if (tokenHash) {
+          const { error: hashError } = await supabase.auth.verifyOtp({
+            type: "recovery",
+            token_hash: tokenHash,
+          })
+          if (!hashError) {
+            return true
+          }
+          console.warn("Password reset token_hash verification failed:", hashError)
+        }
+
+        if (token && emailParam) {
+          const { error: otpError } = await supabase.auth.verifyOtp({
+            type: "recovery",
+            email: emailParam,
+            token,
+          })
+          if (!otpError) {
+            return true
+          }
+          console.warn("Password reset token verification failed:", otpError)
+        }
+
+        return false
+      }
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+        if (error) {
+          console.error("Password reset verification failed:", error)
+          const normalizedMessage = error.message?.toLowerCase() ?? ""
+          const requiresFallback =
+            error?.status === 400 ||
+            error?.code === "validation_failed" ||
+            normalizedMessage.includes("code verifier") ||
+            normalizedMessage.includes("code_verifier") ||
+            normalizedMessage.includes("pkce")
+
+          if (requiresFallback) {
+            const fallbackWorked = await attemptOtpFallback()
+            if (fallbackWorked) {
+              setMessage("")
+              setViewState("form")
+              return
+            }
+          }
+
+          setMessage("Invalid or expired reset link. Please request a new password reset.")
+          setViewState("error")
+          return
+        }
+
+        setMessage("")
+        setViewState("form")
+        return
+      }
+
+      const fallbackWorked = await attemptOtpFallback()
+      if (fallbackWorked) {
+        setMessage("")
+        setViewState("form")
+        return
+      }
+
+      setMessage("Invalid or expired reset link. Please request a new password reset.")
+      setViewState("error")
     }
 
     verifyLink()
