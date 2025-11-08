@@ -23,13 +23,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 
-type RouteParams = {
-  id?: string | string[]
-}
-
 export default function UserDetailPage() {
-  const params = useParams<RouteParams>()
-  const userId = Array.isArray(params?.id) ? params?.id[0] : params?.id
+  const params = useParams();
+  const userIdParam = params?.id as string | string[] | undefined;
+  const userId = Array.isArray(userIdParam) ? userIdParam[0] : userIdParam;
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -420,10 +417,13 @@ export default function UserDetailPage() {
                     </td>
                   </tr>
                 ) : (
-                  (user.transactions || []).map((transaction) => {
+                  (user.transactions || []).map((transaction: any) => {
                     const transactionMeta = parseTransactionMeta(transaction)
                     return (
-                      <tr key={transaction.id} className="text-sm text-gray-300 border-b border-gray-700/50">
+                      <tr
+                        key={transaction.id}
+                        className="text-sm text-gray-300 border-b border-gray-700/50"
+                      >
                         <td className="px-6 py-4 font-mono text-xs">{transaction.id}</td>
                         <td className="px-6 py-4">
                           <div className="space-y-1">
@@ -437,21 +437,26 @@ export default function UserDetailPage() {
                             )}
                           </div>
                         </td>
-                      <td className="px-6 py-4 font-medium">{transaction.amount_eth} ETH</td>
-                      <td className="px-6 py-4 text-gray-400">
-                        {new Date(transaction.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          transaction.status === "completed" ? "bg-green-500/10 text-green-400" :
-                          transaction.status === "pending" ? "bg-yellow-500/10 text-yellow-400" :
-                          "bg-red-500/10 text-red-400"
-                        }`}>
-                          {transaction.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                        <td className="px-6 py-4 font-medium">{transaction.amount_eth} ETH</td>
+                        <td className="px-6 py-4 text-gray-400">
+                          {new Date(transaction.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              transaction.status === "completed"
+                                ? "bg-green-500/10 text-green-400"
+                                : transaction.status === "pending"
+                                  ? "bg-yellow-500/10 text-yellow-400"
+                                  : "bg-red-500/10 text-red-400"
+                            }`}
+                          >
+                            {transaction.status}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
