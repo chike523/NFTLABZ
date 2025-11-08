@@ -3,6 +3,7 @@ export interface WalletAdjustmentData {
   amount: string
   action: 'credit' | 'debit'
   transactionType: string
+  customLabel?: string
   note?: string
   balanceAfter?: string
   siteName: string
@@ -19,6 +20,19 @@ export function getWalletAdjustmentTemplate(data: WalletAdjustmentData) {
 
   const balanceLine = data.balanceAfter
     ? `<p style="margin: 0 0 16px; color: #4b5563;">Your updated balance is <strong>${data.balanceAfter} ETH</strong>.</p>`
+    : ''
+
+  const customLabelSection = data.customLabel
+    ? `
+      <div style="margin: 24px 0; border-left: 4px solid #818cf8; background-color: #eef2ff; padding: 16px 20px; border-radius: 6px;">
+        <p style="margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #3730a3;">
+          Adjustment Label
+        </p>
+        <p style="margin: 8px 0 0; color: #1e1b4b; font-weight: 600;">
+          ${data.customLabel}
+        </p>
+      </div>
+    `
     : ''
 
   const noteSection = data.note
@@ -73,6 +87,7 @@ export function getWalletAdjustmentTemplate(data: WalletAdjustmentData) {
               </div>
 
               ${balanceLine}
+              ${customLabelSection}
               ${noteSection}
 
               <p style="margin:24px 0 0; color:#475569; font-size:15px; line-height:1.6;">
@@ -105,7 +120,8 @@ Hi ${data.username},
 
 ${amountLine}
 Transaction Type: ${data.transactionType}
-${note ? `\nAdmin note:\n${data.note}\n` : ''}
+${data.customLabel ? `Adjustment label: ${data.customLabel}\n` : ''}
+${data.note ? `Admin note:\n${data.note}\n` : ''}
 ${data.balanceAfter ? `Updated balance: ${data.balanceAfter} ETH\n` : ''}
 
 You can review your transaction history here:

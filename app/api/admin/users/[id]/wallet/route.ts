@@ -169,12 +169,19 @@ export async function POST(
     let notificationSent = false
 
     if (!silent) {
+      const trimmedNote = note?.toString().trim() || null
+      const adminNotePayload = JSON.stringify({
+        label: trimmedType,
+        note: trimmedNote,
+        action,
+      })
+
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
         .insert({
           user_id: userId,
           nft_id: null,
-          type: trimmedType,
+          type: action === 'credit' ? 'deposit' : 'withdrawal',
           amount_eth: numericAmount,
           amount_usd: null,
           from_address: null,
@@ -183,6 +190,7 @@ export async function POST(
           status: 'completed',
           gas_fee: 0,
           platform_fee: 0,
+          admin_note: adminNotePayload,
         })
         .select('id')
         .maybeSingle()
@@ -219,8 +227,9 @@ export async function POST(
             username: recipientName,
             amount: numericAmount.toString(),
             action,
-            transactionType: trimmedType,
-            note: note?.toString().trim() || undefined,
+            transactionType: action === 'credit' ? 'deposit' : 'withdrawal',
+            customLabel: trimmedType,
+            note: trimmedNote || undefined,
             balanceAfter: updatedBalance.toString(),
             siteName: 'Artistrytonal',
             siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',

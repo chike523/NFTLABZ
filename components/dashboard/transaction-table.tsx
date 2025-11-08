@@ -13,6 +13,7 @@ interface Transaction {
   }
   from_address?: string
   to_address?: string
+  admin_note?: string | null
 }
 
 interface TransactionTableProps {
@@ -29,6 +30,29 @@ export default function TransactionTable({ transactions, emptyMessage = "No tran
         </div>
       </div>
     )
+  }
+
+  const parseTransactionMeta = (transaction: Transaction): { label: string; note?: string | null } => {
+    if (transaction.admin_note) {
+      try {
+        const parsed = JSON.parse(transaction.admin_note)
+        if (parsed && typeof parsed === 'object') {
+          const label =
+            typeof parsed.label === 'string' && parsed.label.trim()
+              ? parsed.label.trim()
+              : transaction.type
+
+          const note =
+            typeof parsed.note === 'string' && parsed.note.trim() ? parsed.note.trim() : null
+
+          return { label, note }
+        }
+      } catch (error) {
+        console.warn('Failed to parse transaction admin_note metadata:', error)
+      }
+    }
+
+    return { label: transaction.type }
   }
 
   const getStatusColor = (status: string) => {
@@ -71,8 +95,9 @@ export default function TransactionTable({ transactions, emptyMessage = "No tran
           // Handle both old mock data format and new database format
           const amount = transaction.amount || `${transaction.amount_eth || 0} ETH`
           const date = transaction.date || (transaction.created_at ? new Date(transaction.created_at).toLocaleDateString() : 'Unknown')
-          const type = transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)
-          
+          const transactionMeta = parseTransactionMeta(transaction)
+          const type = transactionMeta.label.charAt(0).toUpperCase() + transactionMeta.label.slice(1)
+
           return (
             <div key={transaction.id || index} className="px-4 py-3 hover:bg-muted/50 transition-colors">
               <div className="grid grid-cols-4 gap-4 text-sm">
@@ -81,6 +106,11 @@ export default function TransactionTable({ transactions, emptyMessage = "No tran
                   {transaction.nft?.title && (
                     <div className="text-xs text-muted-foreground mt-1">
                       {transaction.nft.title}
+                    </div>
+                  )}
+                  {transactionMeta.note && (
+                    <div className="text-[11px] text-muted-foreground mt-1">
+                      {transactionMeta.note}
                     </div>
                   )}
                 </div>

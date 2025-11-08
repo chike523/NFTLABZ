@@ -142,6 +142,31 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
     setIsAdjustmentModalOpen(false)
   }
 
+  const parseTransactionMeta = (transaction: any): { label: string; note?: string | null } => {
+    if (!transaction?.admin_note) {
+      return { label: transaction?.type || 'transaction' }
+    }
+
+    try {
+      const parsed = JSON.parse(transaction.admin_note)
+      if (parsed && typeof parsed === 'object') {
+        const label =
+          typeof parsed.label === 'string' && parsed.label.trim()
+            ? parsed.label.trim()
+            : transaction.type
+
+        const note =
+          typeof parsed.note === 'string' && parsed.note.trim() ? parsed.note.trim() : null
+
+        return { label, note }
+      }
+    } catch (error) {
+      console.warn('Failed to parse transaction admin_note metadata:', error)
+    }
+
+    return { label: transaction?.type || 'transaction' }
+  }
+
   const handleAdjustmentInputChange = (field: "amount" | "transactionType" | "note") => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = event.target.value
     setAdjustmentForm((prev) => ({
@@ -404,14 +429,23 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
                     </td>
                   </tr>
                 ) : (
-                  (user.transactions || []).map((transaction) => (
-                    <tr key={transaction.id} className="text-sm text-gray-300 border-b border-gray-700/50">
-                      <td className="px-6 py-4 font-mono text-xs">{transaction.id}</td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 rounded-full text-xs bg-blue-500/10 text-blue-400 capitalize">
-                          {transaction.type}
-                        </span>
-                      </td>
+                  (user.transactions || []).map((transaction) => {
+                    const transactionMeta = parseTransactionMeta(transaction)
+                    return (
+                      <tr key={transaction.id} className="text-sm text-gray-300 border-b border-gray-700/50">
+                        <td className="px-6 py-4 font-mono text-xs">{transaction.id}</td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1">
+                            <span className="px-2 py-1 rounded-full text-xs bg-blue-500/10 text-blue-400 capitalize">
+                              {transactionMeta.label}
+                            </span>
+                            {transactionMeta.note && (
+                              <p className="text-[11px] text-gray-500">
+                                {transactionMeta.note}
+                              </p>
+                            )}
+                          </div>
+                        </td>
                       <td className="px-6 py-4 font-medium">{transaction.amount_eth} ETH</td>
                       <td className="px-6 py-4 text-gray-400">
                         {new Date(transaction.created_at).toLocaleDateString()}

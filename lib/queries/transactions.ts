@@ -14,6 +14,7 @@ export interface Transaction {
   status: 'pending' | 'completed' | 'failed' | 'cancelled'
   gas_fee: number
   platform_fee: number
+  admin_note?: string | null
   created_at: string
   updated_at: string
   // Joined data
