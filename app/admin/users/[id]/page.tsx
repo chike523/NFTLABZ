@@ -255,31 +255,38 @@ export default function UserDetailPage() {
   const handleSuspend = async () => {
     if (!user?.id) return
 
-    const confirmed = window.confirm('Suspend this user? They will lose access until reactivated.')
+    const isSuspended = user.status === 'suspended'
+    const confirmed = window.confirm(
+      isSuspended
+        ? 'Unsuspend this user and restore their access?'
+        : 'Suspend this user? They will lose access until reactivated.'
+    )
     if (!confirmed) return
 
     try {
       const response = await fetch(`/api/admin/users/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'suspended' }),
+        body: JSON.stringify({ status: isSuspended ? 'active' : 'suspended' }),
       })
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to suspend user.')
+        throw new Error(data.error || `Failed to ${isSuspended ? 'unsuspend' : 'suspend'} user.`)
       }
 
       toast({
-        title: 'User suspended',
-        description: `${user.display_name || user.username || 'User'} has been suspended.`,
+        title: isSuspended ? 'User unsuspended' : 'User suspended',
+        description: `${user.display_name || user.username || 'User'} has been ${
+          isSuspended ? 're-activated' : 'suspended'
+        }.`,
       })
 
       await fetchUserData()
     } catch (err) {
-      console.error('Suspend user failed:', err)
+      console.error('Suspend/unsuspend user failed:', err)
       toast({
-        title: 'Suspend failed',
+        title: isSuspended ? 'Unsuspend failed' : 'Suspend failed',
         description:
           err instanceof Error ? err.message : 'Unable to suspend user. Please try again.',
         variant: 'destructive',
@@ -385,7 +392,7 @@ export default function UserDetailPage() {
               </Button>
               <Button variant="outline" size="sm" className="border-yellow-600 text-yellow-400 hover:bg-yellow-600/10" onClick={handleSuspend}>
                 <Ban className="h-4 w-4 mr-2" />
-                Suspend User
+                {user.status === 'suspended' ? 'Unsuspend User' : 'Suspend User'}
               </Button>
             </div>
           </div>
