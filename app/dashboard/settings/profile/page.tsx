@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, Save, X, User } from "lucide-react"
+import { ArrowLeft, Save, X, User, Loader2 } from "lucide-react"
 import DashboardLayout from "@/components/dashboard/layout"
 import ImageUpload from "@/components/dashboard/image-upload"
 import { Button } from "@/components/ui/button"
