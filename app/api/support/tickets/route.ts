@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateTicketId } from '@/lib/utils/ticket-id'
+import { EmailNotificationService } from '@/lib/email/notification-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -111,6 +112,8 @@ export async function POST(request: NextRequest) {
       firstMessage = insertedMessage
     }
 
+    let responseAttachments: any[] = []
+
     // Create attachments if any (only if message was created)
     if (firstMessage && attachments && Array.isArray(attachments) && attachments.length > 0) {
       const attachmentInserts = attachments.map((att: { file_url: string; file_name: string; file_type: string; file_size: number }) => ({
@@ -131,6 +134,38 @@ export async function POST(request: NextRequest) {
         console.error('Error creating attachments:', attachError)
         // Continue anyway - attachments are optional
       }
+
+      const { data: messageAttachments } = await supabase
+        .from('support_ticket_attachments')
+        .select('*')
+        .eq('message_id', firstMessage.id)
+
+      responseAttachments = messageAttachments || []
+    }
+
+    const messagePreview =
+      sanitizedMessage ||
+      (responseAttachments.length > 0 ? 'User attached files to this ticket.' : 'No message provided.')
+
+    try {
+      const adminEmails = await EmailNotificationService.getAdminEmails()
+      if (adminEmails.length > 0) {
+        await EmailNotificationService.sendAdminSupportTicketCreated(adminEmails, {
+          ticketId: ticket.ticket_id,
+          subject: sanitizedSubject,
+          userName:
+            user.user_metadata?.display_name ||
+            user.user_metadata?.username ||
+            user.email?.split('@')[0] ||
+            'User',
+          userEmail: user.email || 'N/A',
+          messagePreview: messagePreview.length > 240 ? `${messagePreview.slice(0, 237)}...` : messagePreview,
+          siteName: 'Artistrytonal',
+          siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+        })
+      }
+    } catch (emailError) {
+      console.error('[Email] Admin support ticket created notification failed:', emailError)
     }
 
     return NextResponse.json({ 
@@ -138,7 +173,7 @@ export async function POST(request: NextRequest) {
       ticket: {
         ...ticket,
         messages: firstMessage ? [firstMessage] : [],
-        attachments: attachments || []
+        attachments: responseAttachments
       }
     })
   } catch (error) {

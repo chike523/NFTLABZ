@@ -2,8 +2,6 @@ export interface WalletAdjustmentData {
   username: string
   amount: string
   action: 'credit' | 'debit'
-  transactionType: string
-  customLabel?: string
   note?: string
   balanceAfter?: string
   siteName: string
@@ -20,19 +18,6 @@ export function getWalletAdjustmentTemplate(data: WalletAdjustmentData) {
 
   const balanceLine = data.balanceAfter
     ? `<p style="margin: 0 0 16px; color: #4b5563;">Your updated balance is <strong>${data.balanceAfter} ETH</strong>.</p>`
-    : ''
-
-  const customLabelSection = data.customLabel
-    ? `
-      <div style="margin: 24px 0; border-left: 4px solid #818cf8; background-color: #eef2ff; padding: 16px 20px; border-radius: 6px;">
-        <p style="margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #3730a3;">
-          Adjustment Label
-        </p>
-        <p style="margin: 8px 0 0; color: #1e1b4b; font-weight: 600;">
-          ${data.customLabel}
-        </p>
-      </div>
-    `
     : ''
 
   const noteSection = data.note
@@ -66,7 +51,6 @@ export function getWalletAdjustmentTemplate(data: WalletAdjustmentData) {
           <tr>
             <td style="background:linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%); padding:40px 32px;">
               <h1 style="margin:0; font-size:28px; color:#ffffff; font-weight:700;">${actionLabel}</h1>
-              <p style="margin:12px 0 0; color:#e2e8f0; font-size:16px;">Transaction Type: <strong>${data.transactionType}</strong></p>
             </td>
           </tr>
           <tr>
@@ -87,7 +71,6 @@ export function getWalletAdjustmentTemplate(data: WalletAdjustmentData) {
               </div>
 
               ${balanceLine}
-              ${customLabelSection}
               ${noteSection}
 
               <p style="margin:24px 0 0; color:#475569; font-size:15px; line-height:1.6;">
@@ -119,8 +102,6 @@ export function getWalletAdjustmentTemplate(data: WalletAdjustmentData) {
 Hi ${data.username},
 
 ${amountLine}
-Transaction Type: ${data.transactionType}
-${data.customLabel ? `Adjustment label: ${data.customLabel}\n` : ''}
 ${data.note ? `Admin note:\n${data.note}\n` : ''}
 ${data.balanceAfter ? `Updated balance: ${data.balanceAfter} ETH\n` : ''}
 

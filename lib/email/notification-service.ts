@@ -16,6 +16,8 @@ import { getWelcomeTemplate, WelcomeEmailData } from './templates/welcome'
 import { getPasswordResetTemplate, PasswordResetData } from './templates/password-reset'
 import { getSupportReplyTemplate, SupportReplyData } from './templates/support-reply'
 import { getWalletAdjustmentTemplate, WalletAdjustmentData } from './templates/wallet-adjustment'
+import { getAdminSupportTicketCreatedTemplate, AdminSupportTicketCreatedData } from './templates/admin-support-ticket-created'
+import { getAdminSupportTicketReplyTemplate, AdminSupportTicketReplyData } from './templates/admin-support-ticket-reply'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export class EmailNotificationService {
@@ -141,6 +143,60 @@ export class EmailNotificationService {
       console.error('[Email] Admin new withdrawal failed:', error)
       throw error
     }
+  }
+
+  /**
+   * Notify admins about a new support ticket
+   */
+  static async sendAdminSupportTicketCreated(adminEmails: string[], data: AdminSupportTicketCreatedData) {
+    if (!adminEmails || adminEmails.length === 0) return
+
+    const { subject, html, text } = getAdminSupportTicketCreatedTemplate(data)
+
+    await Promise.all(
+      adminEmails.map(async (email) => {
+        try {
+          await sendMail({ to: email, subject, html, text })
+          await this.logEmail(email, subject, 'admin_support_ticket_created', 'sent')
+        } catch (error) {
+          console.error('[Email] Admin support ticket created failed:', error)
+          await this.logEmail(
+            email,
+            subject,
+            'admin_support_ticket_created',
+            'failed',
+            error instanceof Error ? error.message : 'Unknown error'
+          )
+        }
+      })
+    )
+  }
+
+  /**
+   * Notify admins when a user replies to a support ticket
+   */
+  static async sendAdminSupportTicketReply(adminEmails: string[], data: AdminSupportTicketReplyData) {
+    if (!adminEmails || adminEmails.length === 0) return
+
+    const { subject, html, text } = getAdminSupportTicketReplyTemplate(data)
+
+    await Promise.all(
+      adminEmails.map(async (email) => {
+        try {
+          await sendMail({ to: email, subject, html, text })
+          await this.logEmail(email, subject, 'admin_support_ticket_reply', 'sent')
+        } catch (error) {
+          console.error('[Email] Admin support ticket reply failed:', error)
+          await this.logEmail(
+            email,
+            subject,
+            'admin_support_ticket_reply',
+            'failed',
+            error instanceof Error ? error.message : 'Unknown error'
+          )
+        }
+      })
+    )
   }
 
   /**

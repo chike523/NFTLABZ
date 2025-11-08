@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { EmailNotificationService } from '@/lib/email/notification-service'
 
 export async function POST(
   request: NextRequest,
@@ -29,7 +30,7 @@ export async function POST(
     // Verify ticket ownership
     const { data: ticket, error: ticketError } = await supabase
       .from('support_tickets')
-      .select('id, status, user_id')
+      .select('id, status, user_id, ticket_id, subject')
       .eq('id', id)
       .maybeSingle()
 
@@ -107,6 +108,8 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to create message' }, { status: 500 })
     }
 
+    let responseAttachments: any[] = []
+
     // Create attachments if any
     if (attachmentList.length > 0) {
       const attachmentInserts = attachmentList.map((att: { file_url: string; file_name: string; file_type: string; file_size: number }) => ({
@@ -134,20 +137,39 @@ export async function POST(
         .select('*')
         .eq('message_id', newMessage.id)
 
-      return NextResponse.json({
-        success: true,
-        message: {
-          ...newMessage,
-          attachments: messageAttachments || []
-        }
-      })
+      responseAttachments = messageAttachments || []
+    }
+
+    const messagePreview =
+      newMessage.message ||
+      (responseAttachments.length > 0 ? 'User uploaded attachments.' : 'No message provided.')
+
+    try {
+      const adminEmails = await EmailNotificationService.getAdminEmails()
+      if (adminEmails.length > 0) {
+        await EmailNotificationService.sendAdminSupportTicketReply(adminEmails, {
+          ticketId: ticket.ticket_id,
+          subject: ticket.subject || 'Support Ticket',
+          userName:
+            user.user_metadata?.display_name ||
+            user.user_metadata?.username ||
+            user.email?.split('@')[0] ||
+            'User',
+          userEmail: user.email || 'N/A',
+          messagePreview: messagePreview.length > 240 ? `${messagePreview.slice(0, 237)}...` : messagePreview,
+          siteName: 'Artistrytonal',
+          siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+        })
+      }
+    } catch (emailError) {
+      console.error('[Email] Admin support ticket reply notification failed:', emailError)
     }
 
     return NextResponse.json({
       success: true,
       message: {
         ...newMessage,
-        attachments: []
+        attachments: responseAttachments
       }
     })
   } catch (error) {
