@@ -6,9 +6,8 @@ import Link from "next/link"
 import Image from "next/image"
 
 interface NFTItem {
-  id: number
+  id: string
   title: string
-  artist: string
   image: string
   price: string
   priceUSD: string
@@ -19,9 +18,9 @@ interface NFTGridProps {
 }
 
 function NFTGrid({ items }: NFTGridProps) {
-  const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  const handleCopy = async (e: React.MouseEvent, title: string, id: number) => {
+  const handleCopy = async (e: React.MouseEvent, title: string, id: string) => {
     e.preventDefault()
     e.stopPropagation()
     
@@ -71,11 +70,6 @@ function NFTGrid({ items }: NFTGridProps) {
                 <h3 className="font-semibold text-lg text-foreground truncate">
                   {item.title}
                 </h3>
-
-                {/* Artist */}
-                <p className="text-base text-muted-foreground">
-                  {item.artist}
-                </p>
 
                 {/* Price Section */}
                 <div className="flex justify-between items-end pt-2">

@@ -30,7 +30,7 @@ export default async function ArtsPage() {
   }
 
   // Fetch NFTs for this category
-  const { data: nfts, error: nftsError } = await nftQueries.getNFTsByCategory('arts', 20, 0)
+  const { data: nfts } = await nftQueries.getNFTsByCategory('arts', 20, 0)
   
   // Fetch dynamic stats
   const stats = await getCategoryStats('arts')
@@ -42,7 +42,6 @@ export default async function ArtsPage() {
     return {
       id: nft.id,
       title: nft.title,
-      artist: nft.creator?.username || nft.creator?.display_name || "Unknown Artist",
       image: nft.image_url,
       price: formatEth(ethValue),
       priceUSD: formatCurrency(usdtValue),
