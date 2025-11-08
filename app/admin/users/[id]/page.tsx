@@ -38,7 +38,6 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
   const [adjustmentMode, setAdjustmentMode] = useState<"credit" | "debit">("credit")
   const [adjustmentForm, setAdjustmentForm] = useState({
     amount: "",
-    transactionType: "",
     note: "",
     silent: false,
   })
@@ -123,7 +122,6 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
     setAdjustmentMode(mode)
     setAdjustmentForm({
       amount: "",
-      transactionType: mode === "credit" ? "admin_credit" : "admin_debit",
       note: "",
       silent: false,
     })
@@ -167,7 +165,7 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
     return { label: transaction?.type || 'transaction' }
   }
 
-  const handleAdjustmentInputChange = (field: "amount" | "transactionType" | "note") => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleAdjustmentInputChange = (field: "amount" | "note") => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = event.target.value
     setAdjustmentForm((prev) => ({
       ...prev,
@@ -204,16 +202,6 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
       return
     }
 
-    const typeValue = adjustmentForm.transactionType.trim()
-    if (!typeValue) {
-      toast({
-        title: "Transaction type required",
-        description: "Provide a transaction type label to track this adjustment.",
-        variant: "destructive",
-      })
-      return
-    }
-
     const noteValue = adjustmentForm.note.trim()
 
     const submitAdjustment = async () => {
@@ -228,7 +216,6 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
           body: JSON.stringify({
             action: adjustmentMode,
             amount: amountValue,
-            transactionType: typeValue,
             note: noteValue || undefined,
             silent: adjustmentForm.silent,
           }),
@@ -493,18 +480,6 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
                   value={adjustmentForm.amount}
                   onChange={handleAdjustmentInputChange("amount")}
                   placeholder="0.0000"
-                  required
-                  disabled={adjustmentSubmitting}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="transaction-type">Transaction Type</Label>
-                <Input
-                  id="transaction-type"
-                  value={adjustmentForm.transactionType}
-                  onChange={handleAdjustmentInputChange("transactionType")}
-                  placeholder="e.g. admin_credit, bonus_reward"
                   required
                   disabled={adjustmentSubmitting}
                 />

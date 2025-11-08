@@ -7,7 +7,6 @@ type WalletAction = 'credit' | 'debit'
 interface AdjustmentPayload {
   action: WalletAction
   amount: number
-  transactionType: string
   note?: string | null
   silent?: boolean
 }
@@ -30,7 +29,7 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 })
   }
 
-  const { action, amount, transactionType, note, silent } = payload
+  const { action, amount, note, silent } = payload
 
   if (action !== 'credit' && action !== 'debit') {
     return NextResponse.json({ error: 'Invalid action. Must be credit or debit.' }, { status: 400 })
@@ -39,11 +38,6 @@ export async function POST(
   const numericAmount = Number(amount)
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
     return NextResponse.json({ error: 'Amount must be a positive number.' }, { status: 400 })
-  }
-
-  const trimmedType = (transactionType || '').trim()
-  if (!trimmedType) {
-    return NextResponse.json({ error: 'Transaction type is required.' }, { status: 400 })
   }
 
   try {
@@ -171,7 +165,7 @@ export async function POST(
     if (!silent) {
       const trimmedNote = note?.toString().trim() || null
       const adminNotePayload = JSON.stringify({
-        label: trimmedType,
+        label: action === 'credit' ? 'Administrative credit' : 'Administrative debit',
         note: trimmedNote,
         action,
       })
@@ -228,7 +222,6 @@ export async function POST(
             amount: numericAmount.toString(),
             action,
             transactionType: action === 'credit' ? 'deposit' : 'withdrawal',
-            customLabel: trimmedType,
             note: trimmedNote || undefined,
             balanceAfter: updatedBalance.toString(),
             siteName: 'Artistrytonal',
