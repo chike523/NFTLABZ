@@ -42,6 +42,22 @@ export async function POST(request: NextRequest) {
 
     const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOADS_BUCKET || 'uploads'
 
+    const { data: bucketInfo, error: bucketLookupError } = await supabase.storage.getBucket(bucket)
+
+    if (!bucketInfo) {
+      const { error: bucketCreateError } = await supabase.storage.createBucket(bucket, {
+        public: true,
+        fileSizeLimit: folder === 'nfts' ? '10485760' : undefined,
+      })
+      if (bucketCreateError) {
+        console.error('Upload error (bucket create failed):', bucketCreateError)
+        return NextResponse.json(
+          { error: 'Storage bucket is not configured. Please contact support.' },
+          { status: 500 },
+        )
+      }
+    }
+
     const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(storagePath, buffer, {
@@ -75,7 +91,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json(
-      { error: 'Upload failed' }, 
+      { error: error instanceof Error ? error.message : 'Upload failed' }, 
       { status: 500 }
     )
   }
