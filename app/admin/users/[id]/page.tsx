@@ -1,7 +1,7 @@
 "use client"
 
-import { useParams, useRouter } from "next/navigation"
-import { useEffect, useState, use, useCallback } from "react"
+import { useParams } from "next/navigation"
+import { useEffect, useState, useCallback } from "react"
 import AdminLayout from "@/components/admin/layout"
 import AdminHeader from "@/components/admin/header"
 import { ArrowLeft, CheckCircle2, Ban, Trash2, LogIn, Loader2, Plus, Minus } from "lucide-react"
@@ -23,13 +23,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 
-interface UserDetailPageProps {
-  params: Promise<{ id: string }>
+type RouteParams = {
+  id?: string | string[]
 }
 
-export default function UserDetailPage({ params }: UserDetailPageProps) {
-  const resolvedParams = use(params)
-  const router = useRouter()
+export default function UserDetailPage() {
+  const params = useParams<RouteParams>()
+  const userId = Array.isArray(params?.id) ? params?.id[0] : params?.id
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,10 +45,14 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
   const { toast } = useToast()
 
   const fetchUserData = useCallback(async () => {
+    if (!userId) {
+      setError('User ID not found in route.')
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
-      const userId = resolvedParams.id
-
       // Fetch user data (includes wallets, NFT count, and transactions)
       const { data: userData, error: userError } = await adminQueries.getUserById(userId)
       if (userError || !userData) {
@@ -62,7 +66,7 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
     } finally {
       setLoading(false)
     }
-  }, [resolvedParams.id])
+  }, [userId])
 
   useEffect(() => {
     fetchUserData()
