@@ -108,6 +108,7 @@ export async function PATCH(
                 siteUrl
               }).catch(err => console.error('[Email] NFT approved notification failed:', err))
             } else if (status === 'rejected') {
+              await processMintFeeRefund(supabase, params.id, ownerId)
               EmailNotificationService.sendNftRejected(owner.email, {
                 username: owner.display_name || owner.username || owner.email,
                 nftTitle: data.title || 'Your NFT',
@@ -131,6 +132,113 @@ export async function PATCH(
       { data: null, error: err?.message || 'Failed to update NFT' },
       { status: 500 }
     )
+  }
+}
+
+async function processMintFeeRefund(
+  supabase: ReturnType<typeof getServiceClient>,
+  nftId: string,
+  userId: string
+) {
+  try {
+    // Fetch mint transaction
+    const { data: mintTransaction, error: mintTxError } = await supabase
+      .from('transactions')
+      .select('id, amount_eth, status')
+      .eq('nft_id', nftId)
+      .eq('type', 'mint')
+      .order('created_at', { ascending: false })
+      .maybeSingle()
+
+    if (mintTxError) {
+      console.error('[Mint Refund] Failed to fetch mint transaction:', mintTxError)
+      return
+    }
+
+    const refundAmount = Number(mintTransaction?.amount_eth ?? 0)
+    if (!mintTransaction || !refundAmount || refundAmount <= 0) {
+      return
+    }
+
+    if (mintTransaction.status && mintTransaction.status !== 'completed') {
+      // Already refunded or cancelled
+      return
+    }
+
+    // Fetch user wallet
+    const { data: wallet, error: walletError } = await supabase
+      .from('wallets')
+      .select('id, balance_eth, balance')
+      .eq('user_id', userId)
+      .eq('is_primary', true)
+      .maybeSingle()
+
+    if (walletError || !wallet) {
+      console.error('[Mint Refund] Failed to fetch wallet for refund:', walletError)
+      return
+    }
+
+    const currentBalance = Number(wallet.balance_eth ?? wallet.balance ?? 0)
+    const updatedBalance = parseFloat((currentBalance + refundAmount).toFixed(8))
+
+    let walletUpdate = await supabase
+      .from('wallets')
+      .update({ balance_eth: updatedBalance })
+      .eq('id', wallet.id)
+      .eq('user_id', userId)
+      .eq('is_primary', true)
+
+    if (walletUpdate.error) {
+      if (walletUpdate.error.message?.includes('balance_eth')) {
+        walletUpdate = await supabase
+          .from('wallets')
+          .update({ balance: updatedBalance })
+          .eq('id', wallet.id)
+          .eq('user_id', userId)
+          .eq('is_primary', true)
+
+        if (walletUpdate.error) {
+          console.error('[Mint Refund] Wallet balance fallback failed:', walletUpdate.error)
+          return
+        }
+      } else {
+        console.error('[Mint Refund] Wallet balance update failed:', walletUpdate.error)
+        return
+      }
+    }
+
+    // Mark original mint transaction as cancelled
+    const { error: cancelError } = await supabase
+      .from('transactions')
+      .update({ status: 'cancelled' })
+      .eq('id', mintTransaction.id)
+
+    if (cancelError) {
+      console.error('[Mint Refund] Failed to cancel mint transaction:', cancelError)
+    }
+
+    // Log refund transaction
+    const { error: refundTxError } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        nft_id: nftId,
+        type: 'deposit',
+        amount_eth: refundAmount,
+        amount_usd: null,
+        from_address: null,
+        to_address: null,
+        tx_hash: null,
+        status: 'completed',
+        gas_fee: 0,
+        platform_fee: 0
+      })
+
+    if (refundTxError) {
+      console.error('[Mint Refund] Failed to record refund transaction:', refundTxError)
+    }
+  } catch (error) {
+    console.error('[Mint Refund] Unexpected error:', error)
   }
 }
 
