@@ -130,7 +130,12 @@ export class UserAuthService {
       // Check if user is active
       if (userData.status !== 'active') {
         await this.supabase.auth.signOut()
-        throw new Error('Account is suspended or banned')
+        const suspended = userData.status === 'suspended'
+        throw new Error(
+          suspended
+            ? 'Your account is currently suspended. Please contact support for assistance.'
+            : 'Your account has been banned. Contact support if you believe this is a mistake.'
+        )
       }
 
       return {

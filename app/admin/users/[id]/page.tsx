@@ -252,6 +252,41 @@ export default function UserDetailPage() {
     void submitAdjustment()
   }
 
+  const handleSuspend = async () => {
+    if (!user?.id) return
+
+    const confirmed = window.confirm('Suspend this user? They will lose access until reactivated.')
+    if (!confirmed) return
+
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'suspended' }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to suspend user.')
+      }
+
+      toast({
+        title: 'User suspended',
+        description: `${user.display_name || user.username || 'User'} has been suspended.`,
+      })
+
+      await fetchUserData()
+    } catch (err) {
+      console.error('Suspend user failed:', err)
+      toast({
+        title: 'Suspend failed',
+        description:
+          err instanceof Error ? err.message : 'Unable to suspend user. Please try again.',
+        variant: 'destructive',
+      })
+    }
+  }
+
   if (loading) {
     return (
       <AdminLayout>
@@ -348,13 +383,9 @@ export default function UserDetailPage() {
                   </>
                 )}
               </Button>
-              <Button variant="outline" size="sm" className="border-yellow-600 text-yellow-400 hover:bg-yellow-600/10">
+              <Button variant="outline" size="sm" className="border-yellow-600 text-yellow-400 hover:bg-yellow-600/10" onClick={handleSuspend}>
                 <Ban className="h-4 w-4 mr-2" />
-                Suspend
-              </Button>
-              <Button variant="outline" size="sm" className="border-red-600 text-red-400 hover:bg-red-600/10">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
+                Suspend User
               </Button>
             </div>
           </div>

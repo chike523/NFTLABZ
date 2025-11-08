@@ -74,3 +74,66 @@ export async function GET(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const resolvedParams = await params
+    const supabase = createAdminClient()
+
+    const body = await request.json().catch(() => ({}))
+    const { status } = body || {}
+
+    if (!status || !['active', 'suspended', 'banned'].includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    }
+
+    const { error } = await supabase
+      .from('Users')
+      .update({
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', resolvedParams.id)
+
+    if (error) {
+      console.error('[Admin] Update user status failed:', error)
+      return NextResponse.json({ error: 'Failed to update user status' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[Admin] Update user status error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const resolvedParams = await params
+    const supabase = createAdminClient()
+
+    const { error } = await supabase
+      .from('Users')
+      .update({
+        status: 'banned',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', resolvedParams.id)
+
+    if (error) {
+      console.error('[Admin] Delete user failed:', error)
+      return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[Admin] Delete user error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
