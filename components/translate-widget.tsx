@@ -49,4 +49,3 @@ export default function TranslateWidget() {
 
   return <div className="gtranslate_wrapper"></div>
 }
-

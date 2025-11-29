@@ -152,6 +152,7 @@
   .swiper-slide-shadow-right {
     background-image: none !important;
   }
+
 }
 
 /* Prevent browser extensions from interfering with hydration */
@@ -257,4 +258,27 @@
 
 .animate-slide-up {
   animation: slideUp 0.4s ease-out;
+}
+
+/* GTranslate Widget - Override transparent background from global reset */
+.gtranslate_wrapper select,
+.gtranslate_wrapper .goog-te-menu-frame,
+.gtranslate_wrapper .goog-te-menu-frame *,
+.gtranslate_wrapper .goog-te-menu2,
+.gtranslate_wrapper .goog-te-menu2 *,
+.gtranslate_wrapper .goog-te-menu2-item,
+.gtranslate_wrapper .goog-te-menu2-item * {
+  background-color: #000 !important;
+}
+
+.gtranslate_wrapper .goog-te-menu2-item:hover,
+.gtranslate_wrapper .goog-te-menu2-item:focus,
+.gtranslate_wrapper .goog-te-menu2-item:hover *,
+.gtranslate_wrapper .goog-te-menu2-item:focus * {
+  background-color: #333 !important;
+}
+
+.gtranslate_wrapper .goog-te-menu2-item-selected,
+.gtranslate_wrapper .goog-te-menu2-item-selected * {
+  background-color: #333 !important;
 }
