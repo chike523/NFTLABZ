@@ -8,6 +8,7 @@ import { DynamicFavicon } from "@/components/dynamic-favicon"
 import { Toaster } from "@/components/ui/toaster"
 import PageLoader from "@/components/page-loader"
 import SupportChatWidget from "@/components/support-chat-widget"
+import TranslateWidget from "@/components/translate-widget"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -36,6 +37,7 @@ export default function RootLayout({
             <PageLoader />
             <DynamicFavicon />
             <SupportChatWidget />
+            <TranslateWidget />
             <div suppressHydrationWarning>
               {children}
             </div>
