@@ -15,86 +15,16 @@ import "swiper/css/effect-coverflow"
 import "swiper/css/navigation"
 
 const heroImages = [
-  {
-    id: 1,
-    image: "/abstract-artistic-portrait-colorful.jpg",
-    title: "Featured Art 1",
-  },
-  {
-    id: 2,
-    image: "/colorful-dog-portrait-artistic-paint.jpg",
-    title: "Featured Art 2",
-  },
-  {
-    id: 3,
-    image: "/cyberpunk-tv-head-mask-horns.jpg",
-    title: "Featured Art 3",
-  },
-  {
-    id: 4,
-    image: "/steampunk-coffee-mug-mechanical.jpg",
-    title: "Featured Art 4",
-  },
-  {
-    id: 5,
-    image: "/gothic-cathedral-architecture-dramatic.jpg",
-    title: "Featured Art 5",
-  },
-  {
-    id: 6,
-    image: "/dark-fantasy-undead-warrior-red-glow.jpg",
-    title: "Featured Art 6",
-  },
-  {
-    id: 7,
-    image: "/futuristic-robot-mech-warrior.jpg",
-    title: "Featured Art 7",
-  },
-  {
-    id: 8,
-    image: "/abstract-artistic-portrait-colorful.jpg",
-    title: "Featured Art 8",
-  },
-  {
-    id: 9,
-    image: "/colorful-dog-portrait-artistic-paint.jpg",
-    title: "Featured Art 9",
-  },
-  {
-    id: 10,
-    image: "/cyberpunk-tv-head-mask-horns.jpg",
-    title: "Featured Art 10",
-  },
-  {
-    id: 11,
-    image: "/steampunk-coffee-mug-mechanical.jpg",
-    title: "Featured Art 11",
-  },
-  {
-    id: 12,
-    image: "/gothic-cathedral-architecture-dramatic.jpg",
-    title: "Featured Art 12",
-  },
-  {
-    id: 13,
-    image: "/dark-fantasy-undead-warrior-red-glow.jpg",
-    title: "Featured Art 13",
-  },
-  {
-    id: 14,
-    image: "/futuristic-robot-mech-warrior.jpg",
-    title: "Featured Art 14",
-  },
-  {
-    id: 15,
-    image: "/herocar.jpeg",
-    title: "Featured Art 15",
-  },
-  {
-    id: 16,
-    image: "/degods.webp",
-    title: "Featured Art 16",
-  },
+  { id: 1, image: "/hero/hero-01.jpg", title: "Featured Art 1" },
+  { id: 2, image: "/hero/hero-02.jpg", title: "Featured Art 2" },
+  { id: 3, image: "/hero/hero-03.jpg", title: "Featured Art 3" },
+  { id: 4, image: "/hero/hero-04.jpg", title: "Featured Art 4" },
+  { id: 5, image: "/hero/hero-05.jpg", title: "Featured Art 5" },
+  { id: 6, image: "/hero/hero-06.jpg", title: "Featured Art 6" },
+  { id: 7, image: "/hero/hero-07.jpg", title: "Featured Art 7" },
+  { id: 8, image: "/hero/hero-08.jpg", title: "Featured Art 8" },
+  { id: 9, image: "/hero/hero-09.jpg", title: "Featured Art 9" },
+  { id: 10, image: "/hero/hero-10.jpg", title: "Featured Art 10" },
 ]
 
 export default function HeroCarousel() {
@@ -107,7 +37,7 @@ export default function HeroCarousel() {
         grabCursor={true}
         centeredSlides={true}
         slidesPerView="auto"
-        initialSlide={7}
+        initialSlide={4}
         coverflowEffect={{
           rotate: 20,
           stretch: 0,
